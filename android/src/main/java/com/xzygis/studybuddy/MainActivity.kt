@@ -4,8 +4,10 @@ import android.Manifest
 import android.app.NotificationManager
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -42,6 +44,7 @@ class MainActivity : ComponentActivity() {
         val granted = when (pendingSettings) {
             PendingSettings.EXACT_ALARM -> applicationContainer.alarmScheduler.canScheduleExactAlarms()
             PendingSettings.FULL_SCREEN -> canUseFullScreenIntent()
+            PendingSettings.BATTERY -> true
             null -> false
         }
         pendingSettings = null
@@ -58,6 +61,7 @@ class MainActivity : ComponentActivity() {
                     hasNotificationPermission = hasNotificationPermission(),
                     canScheduleExactAlarms = applicationContainer.alarmScheduler.canScheduleExactAlarms(),
                     canUseFullScreenIntent = canUseFullScreenIntent(),
+                    isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations(),
                     onEnablePlan = ::beginEnableFlow,
                     onOpenNotificationSettings = {
                         startActivity(
@@ -78,11 +82,12 @@ class MainActivity : ComponentActivity() {
                             settingsPermission.launch(
                                 Intent(
                                     Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
-                                    android.net.Uri.parse("package:$packageName"),
+                                    Uri.parse("package:$packageName"),
                                 ),
                             )
                         }
                     },
+                    onOpenBatterySettings = ::openBatterySettings,
                 )
             }
         }
@@ -117,10 +122,22 @@ class MainActivity : ComponentActivity() {
             settingsPermission.launch(
                 Intent(
                     Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
-                    android.net.Uri.parse("package:$packageName"),
+                    Uri.parse("package:$packageName"),
                 ),
             )
             return
+        }
+        if (!isIgnoringBatteryOptimizations()) {
+            pendingSettings = PendingSettings.BATTERY
+            runCatching {
+                settingsPermission.launch(
+                    Intent(
+                        Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                        Uri.parse("package:$packageName"),
+                    ),
+                )
+                return
+            }.onFailure { pendingSettings = null }
         }
         pendingEnablePlanId = null
         plans.setEnabled(planId, true)
@@ -137,5 +154,21 @@ class MainActivity : ComponentActivity() {
         Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE ||
             getSystemService(NotificationManager::class.java).canUseFullScreenIntent()
 
-    private enum class PendingSettings { EXACT_ALARM, FULL_SCREEN }
+    private fun isIgnoringBatteryOptimizations(): Boolean =
+        getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(packageName) == true
+
+    private fun openBatterySettings() {
+        val intent = if (isIgnoringBatteryOptimizations()) {
+            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+        } else {
+            Intent(
+                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                Uri.parse("package:$packageName"),
+            )
+        }
+        runCatching { startActivity(intent) }
+            .onFailure { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
+    }
+
+    private enum class PendingSettings { EXACT_ALARM, FULL_SCREEN, BATTERY }
 }

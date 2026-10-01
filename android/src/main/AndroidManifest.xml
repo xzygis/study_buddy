@@ -5,12 +5,13 @@
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission
         android:name="android.permission.SCHEDULE_EXACT_ALARM"
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
+    <uses-permission android:name="android.permission.TURN_SCREEN_ON" />
 
     <application
         android:name=".StudyBuddyApplication"
@@ -23,7 +24,10 @@
             android:name=".alarm.AlarmActivity"
             android:excludeFromRecents="true"
             android:exported="false"
-            android:launchMode="singleTop" />
+            android:launchMode="singleInstance"
+            android:showOnLockScreen="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true" />
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -32,18 +36,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <service
-            android:name=".alarm.AlarmRingingService"
-            android:exported="false"
-            android:foregroundServiceType="mediaPlayback"
-            android:stopWithTask="false" />
 
-        <receiver
-            android:name=".alarm.AlarmReceiver"
-            android:exported="false" />
-        <receiver
-            android:name=".alarm.AlarmStopReceiver"
-            android:exported="false" />
         <receiver
             android:name=".alarm.RescheduleReceiver"
             android:directBootAware="false"

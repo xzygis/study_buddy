@@ -37,7 +37,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SportsBasketball
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.outlined.Alarm
@@ -102,10 +101,12 @@ fun StudyBuddyApp(
     hasNotificationPermission: Boolean,
     canScheduleExactAlarms: Boolean,
     canUseFullScreenIntent: Boolean,
+    isIgnoringBatteryOptimizations: Boolean,
     onEnablePlan: (String) -> Unit,
     onOpenNotificationSettings: () -> Unit,
     onOpenExactAlarmSettings: () -> Unit,
     onOpenFullScreenSettings: () -> Unit,
+    onOpenBatterySettings: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var screen by remember { mutableStateOf(MainScreen.TODAY) }
@@ -142,10 +143,12 @@ fun StudyBuddyApp(
                 hasNotificationPermission = hasNotificationPermission,
                 canScheduleExactAlarms = canScheduleExactAlarms,
                 canUseFullScreenIntent = canUseFullScreenIntent,
+                isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
                 onEnablePlan = onEnablePlan,
                 onOpenNotificationSettings = onOpenNotificationSettings,
                 onOpenExactAlarmSettings = onOpenExactAlarmSettings,
                 onOpenFullScreenSettings = onOpenFullScreenSettings,
+                onOpenBatterySettings = onOpenBatterySettings,
                 onEdit = { editingPlan = it },
                 snackbar = snackbar,
             )
@@ -189,9 +192,11 @@ fun StudyBuddyApp(
                         hasNotificationPermission = hasNotificationPermission,
                         canScheduleExactAlarms = canScheduleExactAlarms,
                         canUseFullScreenIntent = canUseFullScreenIntent,
+                        isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
                         onOpenNotificationSettings = onOpenNotificationSettings,
                         onOpenExactAlarmSettings = onOpenExactAlarmSettings,
                         onOpenFullScreenSettings = onOpenFullScreenSettings,
+                        onOpenBatterySettings = onOpenBatterySettings,
                     )
                     MainScreen.PLANS -> PlansScreen(
                         modifier = Modifier.padding(padding),
@@ -215,9 +220,11 @@ private fun TodayScreen(
     hasNotificationPermission: Boolean,
     canScheduleExactAlarms: Boolean,
     canUseFullScreenIntent: Boolean,
+    isIgnoringBatteryOptimizations: Boolean,
     onOpenNotificationSettings: () -> Unit,
     onOpenExactAlarmSettings: () -> Unit,
     onOpenFullScreenSettings: () -> Unit,
+    onOpenBatterySettings: () -> Unit,
 ) {
     val today = LocalDate.now()
     val weekday = Weekday.entries[today.dayOfWeek.value - 1]
@@ -251,10 +258,15 @@ private fun TodayScreen(
         }
         if (!hasNotificationPermission) {
             item { PermissionBanner("通知权限未开启，闹钟无法响铃", onOpenNotificationSettings) }
-        } else if (!canScheduleExactAlarms) {
+        }
+        if (!canScheduleExactAlarms) {
             item { PermissionBanner("精确闹钟权限未开启，计划不会准时触发", onOpenExactAlarmSettings) }
-        } else if (!canUseFullScreenIntent) {
+        }
+        if (!canUseFullScreenIntent) {
             item { PermissionBanner("全屏提醒未开启，锁屏时只显示通知", onOpenFullScreenSettings) }
+        }
+        if (!isIgnoringBatteryOptimizations) {
+            item { PermissionBanner("电池优化可能导致闹钟延迟，建议设为不受限", onOpenBatterySettings) }
         }
         item {
             Text(
@@ -416,7 +428,7 @@ private fun PlansScreen(
         }
         item {
             Text(
-                "启用成功后由 Android 系统管理闹钟，无需保持 App 打开。",
+                "启用后由 Android 系统管理闹钟，无需保持 App 打开。",
                 modifier = Modifier.padding(8.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -503,10 +515,12 @@ private fun TabletLayout(
     hasNotificationPermission: Boolean,
     canScheduleExactAlarms: Boolean,
     canUseFullScreenIntent: Boolean,
+    isIgnoringBatteryOptimizations: Boolean,
     onEnablePlan: (String) -> Unit,
     onOpenNotificationSettings: () -> Unit,
     onOpenExactAlarmSettings: () -> Unit,
     onOpenFullScreenSettings: () -> Unit,
+    onOpenBatterySettings: () -> Unit,
     onEdit: (StudyPlan) -> Unit,
     snackbar: SnackbarHostState,
 ) {
@@ -542,9 +556,11 @@ private fun TabletLayout(
                 hasNotificationPermission = hasNotificationPermission,
                 canScheduleExactAlarms = canScheduleExactAlarms,
                 canUseFullScreenIntent = canUseFullScreenIntent,
+                isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
                 onOpenNotificationSettings = onOpenNotificationSettings,
                 onOpenExactAlarmSettings = onOpenExactAlarmSettings,
                 onOpenFullScreenSettings = onOpenFullScreenSettings,
+                onOpenBatterySettings = onOpenBatterySettings,
             )
         }
     }

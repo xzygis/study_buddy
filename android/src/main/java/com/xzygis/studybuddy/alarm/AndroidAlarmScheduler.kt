@@ -7,7 +7,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import com.xzygis.studybuddy.MainActivity
 import com.xzygis.studybuddy.data.AlarmBinding
 import com.xzygis.studybuddy.data.PlanRecord
 import java.time.Clock
@@ -35,20 +34,25 @@ class AndroidAlarmScheduler(
     fun schedule(planId: String, binding: AlarmBinding) {
         check(canScheduleExactAlarms()) { "系统尚未允许精确闹钟，请先授权。" }
         val triggerAt = nextTrigger(binding).toInstant().toEpochMilli()
+        val pending = alarmPendingIntent(
+            planId = planId,
+            binding = binding,
+            triggerAt = triggerAt,
+            flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
         alarmManager.setAlarmClock(
-            AlarmManager.AlarmClockInfo(triggerAt, showAppIntent()),
-            alarmIntent(planId, binding, PendingIntent.FLAG_UPDATE_CURRENT),
+            AlarmManager.AlarmClockInfo(triggerAt, pending),
+            pending,
         )
     }
 
     fun cancel(bindingId: String) {
-        val pending = alarmPendingIntent(bindingId, PendingIntent.FLAG_NO_CREATE) ?: return
+        val pending = cancelPendingIntent(bindingId) ?: return
         alarmManager.cancel(pending)
         pending.cancel()
     }
 
-    fun exists(bindingId: String): Boolean =
-        alarmPendingIntent(bindingId, PendingIntent.FLAG_NO_CREATE) != null
+    fun exists(bindingId: String): Boolean = cancelPendingIntent(bindingId) != null
 
     fun schedule(record: PlanRecord) {
         record.bindings.forEach { schedule(record.plan.id, it) }
@@ -57,46 +61,24 @@ class AndroidAlarmScheduler(
     internal fun nextTrigger(binding: AlarmBinding): ZonedDateTime =
         AlarmTimeCalculator.nextTrigger(binding, ZonedDateTime.now(clock))
 
-    private fun alarmIntent(
+    private fun alarmPendingIntent(
         planId: String,
         binding: AlarmBinding,
+        triggerAt: Long,
         flags: Int,
-    ): PendingIntent {
-        val intent = Intent(context, AlarmReceiver::class.java).apply {
-            data = alarmUri(binding.id)
-            putExtra(EXTRA_PLAN_ID, planId)
-            putExtra(EXTRA_BINDING_ID, binding.id)
-            putExtra(EXTRA_TITLE, binding.title)
-            putExtra(EXTRA_HOUR, binding.hour)
-            putExtra(EXTRA_MINUTE, binding.minute)
-            putExtra(EXTRA_WEEKDAYS, binding.weekdays.map { it.name }.toTypedArray())
-        }
-        return PendingIntent.getBroadcast(context, 0, intent, flags or PendingIntent.FLAG_IMMUTABLE)
-    }
-
-    private fun alarmPendingIntent(bindingId: String, flags: Int): PendingIntent? {
-        val intent = Intent(context, AlarmReceiver::class.java).apply {
-            data = alarmUri(bindingId)
-        }
-        return PendingIntent.getBroadcast(context, 0, intent, flags or PendingIntent.FLAG_IMMUTABLE)
-    }
-
-    private fun showAppIntent(): PendingIntent = PendingIntent.getActivity(
+    ): PendingIntent = PendingIntent.getActivity(
         context,
-        0,
-        Intent(context, MainActivity::class.java),
-        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        requestCode(binding.id),
+        AlarmActivity.alarmIntent(context, planId, binding, triggerAt),
+        flags,
     )
 
-    private fun alarmUri(bindingId: String) =
-        Uri.parse("studybuddy://${context.packageName}/alarm/$bindingId")
+    private fun cancelPendingIntent(bindingId: String): PendingIntent? = PendingIntent.getActivity(
+        context,
+        requestCode(bindingId),
+        AlarmActivity.cancelProbeIntent(context, bindingId),
+        PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
+    )
 
-    companion object {
-        const val EXTRA_PLAN_ID = "plan_id"
-        const val EXTRA_BINDING_ID = "binding_id"
-        const val EXTRA_TITLE = "title"
-        const val EXTRA_HOUR = "hour"
-        const val EXTRA_MINUTE = "minute"
-        const val EXTRA_WEEKDAYS = "weekdays"
-    }
+    private fun requestCode(bindingId: String) = bindingId.hashCode()
 }
