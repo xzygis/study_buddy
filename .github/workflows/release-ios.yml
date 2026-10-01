@@ -1,0 +1,178 @@
+name: Build & Release IPA
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: study-alarm-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout merged commit
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Verify Xcode
+        run: |
+          xcodebuild -version
+          XCODE_MAJOR=$(xcodebuild -version | awk '/Xcode/ { split($2, version, "."); print version[1] }')
+          test "$XCODE_MAJOR" -ge 26
+
+      - name: Generate version
+        id: version
+        run: |
+          LATEST_TAG=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-version:refname | head -n 1)
+          if [ -z "$LATEST_TAG" ]; then
+            NEW_TAG="v1.0.0"
+          else
+            VERSION=${LATEST_TAG#v}
+            MAJOR=$(echo "$VERSION" | cut -d. -f1)
+            MINOR=$(echo "$VERSION" | cut -d. -f2)
+            PATCH=$(echo "$VERSION" | cut -d. -f3)
+            PATCH=$((PATCH + 1))
+            if [ "$PATCH" -ge 100 ]; then PATCH=0; MINOR=$((MINOR + 1)); fi
+            if [ "$MINOR" -ge 100 ]; then MINOR=0; MAJOR=$((MAJOR + 1)); fi
+            NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+          fi
+          VERSION_NAME=${NEW_TAG#v}
+          IFS=. read -r MAJOR MINOR PATCH <<< "$VERSION_NAME"
+          BUILD_NUMBER=$((MAJOR * 10000 + MINOR * 100 + PATCH))
+          echo "tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Run core tests
+        run: swift test --package-path ios
+
+      - name: Import signing material
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          : "${APPLE_TEAM_ID:?Missing APPLE_TEAM_ID secret}"
+          : "${CERTIFICATE_BASE64:?Missing IOS_DISTRIBUTION_CERTIFICATE_BASE64 secret}"
+          : "${CERTIFICATE_PASSWORD:?Missing IOS_DISTRIBUTION_CERTIFICATE_PASSWORD secret}"
+          : "${PROVISIONING_PROFILE_BASE64:?Missing IOS_PROVISIONING_PROFILE_BASE64 secret}"
+
+          KEYCHAIN_PATH="$RUNNER_TEMP/studyalarm-signing.keychain-db"
+          KEYCHAIN_PASSWORD=$(openssl rand -hex 24)
+          CERTIFICATE_PATH="$RUNNER_TEMP/distribution.p12"
+          PROFILE_PATH="$RUNNER_TEMP/profile.mobileprovision"
+
+          echo "$CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+          echo "$PROVISIONING_PROFILE_BASE64" | base64 --decode > "$PROFILE_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" \
+            -P "$CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -k "$KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+
+          security cms -D -i "$PROFILE_PATH" > "$RUNNER_TEMP/profile.plist"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" "$RUNNER_TEMP/profile.plist")
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" "$RUNNER_TEMP/profile.plist")
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          INSTALLED_PROFILE="$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+          cp "$PROFILE_PATH" "$INSTALLED_PROFILE"
+
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          echo "INSTALLED_PROFILE=$INSTALLED_PROFILE" >> "$GITHUB_ENV"
+          echo "IOS_PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+
+      - name: Archive
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          xcodebuild \
+            -project ios/StudyAlarm.xcodeproj \
+            -scheme StudyAlarm \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$RUNNER_TEMP/StudyAlarm.xcarchive" \
+            MARKETING_VERSION="${{ steps.version.outputs.version_name }}" \
+            CURRENT_PROJECT_VERSION="${{ steps.version.outputs.build_number }}" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="$IOS_PROFILE_NAME" \
+            archive
+
+      - name: Export universal IPA
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          EXPORT_OPTIONS="$RUNNER_TEMP/ExportOptions.plist"
+          EXPORT_PATH="$RUNNER_TEMP/export"
+          cp ios/Configuration/ExportOptions.plist "$EXPORT_OPTIONS"
+          /usr/libexec/PlistBuddy -c "Set :teamID $APPLE_TEAM_ID" "$EXPORT_OPTIONS"
+          /usr/libexec/PlistBuddy \
+            -c "Set :provisioningProfiles:com.xzygis.studybuddy.alarm $IOS_PROFILE_NAME" \
+            "$EXPORT_OPTIONS"
+
+          xcodebuild \
+            -exportArchive \
+            -archivePath "$RUNNER_TEMP/StudyAlarm.xcarchive" \
+            -exportPath "$EXPORT_PATH" \
+            -exportOptionsPlist "$EXPORT_OPTIONS"
+
+          IPA_PATH=$(find "$EXPORT_PATH" -maxdepth 1 -name '*.ipa' -print -quit)
+          test -n "$IPA_PATH"
+          mkdir -p dist
+          cp "$IPA_PATH" "dist/study-alarm-${{ steps.version.outputs.version_name }}.ipa"
+          codesign --verify --deep --strict "$RUNNER_TEMP/StudyAlarm.xcarchive/Products/Applications/StudyAlarm.app"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: study-alarm-${{ steps.version.outputs.version_name }}
+          path: dist/*.ipa
+          if-no-files-found: error
+
+      - name: Remove signing material
+        if: always()
+        run: |
+          if [ -n "${KEYCHAIN_PATH:-}" ]; then security delete-keychain "$KEYCHAIN_PATH" || true; fi
+          if [ -n "${INSTALLED_PROFILE:-}" ]; then rm -f "$INSTALLED_PROFILE"; fi
+          rm -f "$RUNNER_TEMP/distribution.p12" "$RUNNER_TEMP/profile.mobileprovision" "$RUNNER_TEMP/profile.plist"
+
+      - name: Create tag and GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.event.pull_request.merge_commit_sha }}
+          name: StudyAlarm ${{ steps.version.outputs.tag }}
+          body: |
+            ## StudyAlarm ${{ steps.version.outputs.tag }}
+
+            合并的 PR：#${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}
+
+            下载 `study-alarm-${{ steps.version.outputs.version_name }}.ipa`，使用已登记在 Ad Hoc 描述文件中的 iPhone 或 iPad 安装。
+
+            > 最低支持 iOS / iPadOS 26；同一个 IPA 同时支持 iPhone 和 iPad。
+          files: dist/*.ipa
+          fail_on_unmatched_files: true
+          draft: false
+          prerelease: false

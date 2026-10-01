@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Verify Xcode
+        run: |
+          xcodebuild -version
+          XCODE_MAJOR=$(xcodebuild -version | awk '/Xcode/ { split($2, version, "."); print version[1] }')
+          test "$XCODE_MAJOR" -ge 26
+
+      - name: Run core tests
+        run: swift test --package-path ios
+
+      - name: Build universal app for Simulator
+        run: |
+          xcodebuild \
+            -project ios/StudyAlarm.xcodeproj \
+            -scheme StudyAlarm \
+            -configuration Debug \
+            -destination "generic/platform=iOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            build
