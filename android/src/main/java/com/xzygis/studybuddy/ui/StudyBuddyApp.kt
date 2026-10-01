@@ -461,6 +461,7 @@ private fun PlanCard(
     onEnablePlan: (String) -> Unit,
     onEdit: (StudyPlan) -> Unit,
 ) {
+    var confirmDelete by remember(record.plan.id) { mutableStateOf(false) }
     Card(
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -513,6 +514,13 @@ private fun PlanCard(
                     Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(18.dp))
                     Text("复制", modifier = Modifier.padding(start = 7.dp))
                 }
+                TextButton(
+                    onClick = { confirmDelete = true },
+                    enabled = !isBusy && !record.pendingDeletion,
+                ) {
+                    Icon(Icons.Default.Delete, null, modifier = Modifier.size(18.dp))
+                    Text("删除", modifier = Modifier.padding(start = 7.dp))
+                }
                 if (record.phase == com.xzygis.studybuddy.data.SyncPhase.ATTENTION) {
                     TextButton(onClick = { viewModel.retry(record.plan.id) }, enabled = !isBusy) {
                         Text("重试")
@@ -520,6 +528,30 @@ private fun PlanCard(
                 }
             }
         }
+    }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("删除“${record.plan.name}”？") },
+            text = { Text("删除前会取消整组系统闹钟。此操作无法撤销。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmDelete = false
+                        viewModel.delete(record.plan.id)
+                    },
+                    enabled = !isBusy,
+                ) {
+                    Text("删除")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) {
+                    Text("取消")
+                }
+            },
+        )
     }
 }
 
