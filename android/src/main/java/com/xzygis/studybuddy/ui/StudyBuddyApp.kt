@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.SportsBasketball
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.outlined.Alarm
+import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -97,8 +98,15 @@ private enum class MainScreen { TODAY, PLANS }
 @Composable
 fun StudyBuddyApp(
     viewModel: PlanViewModel,
+    hasNotificationPermission: Boolean,
+    canScheduleExactAlarms: Boolean,
+    canUseFullScreenIntent: Boolean,
+    isIgnoringBatteryOptimizations: Boolean,
     onEnablePlan: (String) -> Unit,
-    onOpenSystemClock: () -> Unit,
+    onOpenNotificationSettings: () -> Unit,
+    onOpenExactAlarmSettings: () -> Unit,
+    onOpenFullScreenSettings: () -> Unit,
+    onOpenBatterySettings: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var screen by remember { mutableStateOf(MainScreen.TODAY) }
@@ -118,23 +126,9 @@ fun StudyBuddyApp(
             isExisting = state.database.records.any { it.plan.id == plan.id },
             isBusy = state.isBusy,
             onBack = { editingPlan = null },
-            onSave = { updated ->
-                val needsSystemCleanup = state.database.records
-                    .firstOrNull { it.plan.id == updated.id }
-                    ?.installedInSystemClock == true
-                viewModel.save(updated) {
-                    editingPlan = null
-                    if (needsSystemCleanup) onOpenSystemClock()
-                }
-            },
+            onSave = { viewModel.save(it) { editingPlan = null } },
             onDelete = {
-                val needsSystemCleanup = state.database.records
-                    .firstOrNull { it.plan.id == plan.id }
-                    ?.installedInSystemClock == true
-                viewModel.delete(plan.id) {
-                    editingPlan = null
-                    if (needsSystemCleanup) onOpenSystemClock()
-                }
+                viewModel.delete(plan.id) { editingPlan = null }
             },
         )
         return
@@ -146,8 +140,15 @@ fun StudyBuddyApp(
                 viewModel = viewModel,
                 records = state.database.records,
                 isBusy = state.isBusy,
+                hasNotificationPermission = hasNotificationPermission,
+                canScheduleExactAlarms = canScheduleExactAlarms,
+                canUseFullScreenIntent = canUseFullScreenIntent,
+                isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
                 onEnablePlan = onEnablePlan,
-                onOpenSystemClock = onOpenSystemClock,
+                onOpenNotificationSettings = onOpenNotificationSettings,
+                onOpenExactAlarmSettings = onOpenExactAlarmSettings,
+                onOpenFullScreenSettings = onOpenFullScreenSettings,
+                onOpenBatterySettings = onOpenBatterySettings,
                 onEdit = { editingPlan = it },
                 snackbar = snackbar,
             )
@@ -188,7 +189,14 @@ fun StudyBuddyApp(
                         modifier = Modifier.padding(padding),
                         viewModel = viewModel,
                         records = state.database.records,
-                        onOpenSystemClock = onOpenSystemClock,
+                        hasNotificationPermission = hasNotificationPermission,
+                        canScheduleExactAlarms = canScheduleExactAlarms,
+                        canUseFullScreenIntent = canUseFullScreenIntent,
+                        isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
+                        onOpenNotificationSettings = onOpenNotificationSettings,
+                        onOpenExactAlarmSettings = onOpenExactAlarmSettings,
+                        onOpenFullScreenSettings = onOpenFullScreenSettings,
+                        onOpenBatterySettings = onOpenBatterySettings,
                     )
                     MainScreen.PLANS -> PlansScreen(
                         modifier = Modifier.padding(padding),
@@ -196,7 +204,6 @@ fun StudyBuddyApp(
                         records = state.database.records,
                         isBusy = state.isBusy,
                         onEnablePlan = onEnablePlan,
-                        onOpenSystemClock = onOpenSystemClock,
                         onEdit = { editingPlan = it },
                     )
                 }
@@ -210,7 +217,14 @@ private fun TodayScreen(
     modifier: Modifier,
     viewModel: PlanViewModel,
     records: List<PlanRecord>,
-    onOpenSystemClock: () -> Unit,
+    hasNotificationPermission: Boolean,
+    canScheduleExactAlarms: Boolean,
+    canUseFullScreenIntent: Boolean,
+    isIgnoringBatteryOptimizations: Boolean,
+    onOpenNotificationSettings: () -> Unit,
+    onOpenExactAlarmSettings: () -> Unit,
+    onOpenFullScreenSettings: () -> Unit,
+    onOpenBatterySettings: () -> Unit,
 ) {
     val today = LocalDate.now()
     val weekday = Weekday.entries[today.dayOfWeek.value - 1]
@@ -242,8 +256,17 @@ private fun TodayScreen(
         item {
             DateSummary(today, entries.size)
         }
-        item {
-            SystemClockBanner(onOpenSystemClock)
+        if (!hasNotificationPermission) {
+            item { PermissionBanner("通知权限未开启，闹钟无法响铃", onOpenNotificationSettings) }
+        }
+        if (!canScheduleExactAlarms) {
+            item { PermissionBanner("精确闹钟权限未开启，计划不会准时触发", onOpenExactAlarmSettings) }
+        }
+        if (!canUseFullScreenIntent) {
+            item { PermissionBanner("全屏提醒未开启，锁屏时只显示通知", onOpenFullScreenSettings) }
+        }
+        if (!isIgnoringBatteryOptimizations) {
+            item { PermissionBanner("电池优化可能导致闹钟延迟，建议设为不受限", onOpenBatterySettings) }
         }
         item {
             Text(
@@ -302,19 +325,15 @@ private fun DateSummary(date: LocalDate, count: Int) {
 }
 
 @Composable
-private fun SystemClockBanner(onClick: () -> Unit) {
+private fun PermissionBanner(text: String, onClick: () -> Unit) {
     Surface(color = Color(0xFFFFF3E5), shape = RoundedCornerShape(8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Default.Alarm, null, tint = StudyOrange)
-            Text(
-                "提醒由系统时钟管理",
-                modifier = Modifier.padding(start = 10.dp).weight(1f),
-                style = MaterialTheme.typography.bodySmall,
-            )
-            TextButton(onClick = onClick) { Text("打开") }
+            Icon(Icons.Outlined.NotificationsOff, null, tint = StudyOrange)
+            Text(text, modifier = Modifier.padding(start = 10.dp).weight(1f), style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = onClick) { Text("设置") }
         }
     }
 }
@@ -390,7 +409,6 @@ private fun PlansScreen(
     records: List<PlanRecord>,
     isBusy: Boolean,
     onEnablePlan: (String) -> Unit,
-    onOpenSystemClock: () -> Unit,
     onEdit: (StudyPlan) -> Unit,
 ) {
     LazyColumn(
@@ -406,11 +424,11 @@ private fun PlansScreen(
             }
         }
         items(records, key = { it.plan.id }) { record ->
-            PlanCard(viewModel, record, isBusy, onEnablePlan, onOpenSystemClock, onEdit)
+            PlanCard(viewModel, record, isBusy, onEnablePlan, onEdit)
         }
         item {
             Text(
-                "修改、停用或删除计划后，请在系统时钟中清理旧闹钟。",
+                "启用后由 Android 系统管理闹钟，无需保持 App 打开。",
                 modifier = Modifier.padding(8.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -425,7 +443,6 @@ private fun PlanCard(
     record: PlanRecord,
     isBusy: Boolean,
     onEnablePlan: (String) -> Unit,
-    onOpenSystemClock: () -> Unit,
     onEdit: (StudyPlan) -> Unit,
 ) {
     Card(
@@ -458,12 +475,7 @@ private fun PlanCard(
                 Switch(
                     checked = viewModel.isEnabled(record),
                     onCheckedChange = { enabled ->
-                        if (enabled) {
-                            onEnablePlan(record.plan.id)
-                        } else {
-                            viewModel.setEnabled(record.plan.id, false)
-                            onOpenSystemClock()
-                        }
+                        if (enabled) onEnablePlan(record.plan.id) else viewModel.setEnabled(record.plan.id, false)
                     },
                     enabled = !isBusy && !record.pendingDeletion,
                 )
@@ -500,8 +512,15 @@ private fun TabletLayout(
     viewModel: PlanViewModel,
     records: List<PlanRecord>,
     isBusy: Boolean,
+    hasNotificationPermission: Boolean,
+    canScheduleExactAlarms: Boolean,
+    canUseFullScreenIntent: Boolean,
+    isIgnoringBatteryOptimizations: Boolean,
     onEnablePlan: (String) -> Unit,
-    onOpenSystemClock: () -> Unit,
+    onOpenNotificationSettings: () -> Unit,
+    onOpenExactAlarmSettings: () -> Unit,
+    onOpenFullScreenSettings: () -> Unit,
+    onOpenBatterySettings: () -> Unit,
     onEdit: (StudyPlan) -> Unit,
     snackbar: SnackbarHostState,
 ) {
@@ -527,7 +546,6 @@ private fun TabletLayout(
                     records = records,
                     isBusy = isBusy,
                     onEnablePlan = onEnablePlan,
-                    onOpenSystemClock = onOpenSystemClock,
                     onEdit = onEdit,
                 )
             }
@@ -535,7 +553,14 @@ private fun TabletLayout(
                 modifier = Modifier.weight(1f),
                 viewModel = viewModel,
                 records = records,
-                onOpenSystemClock = onOpenSystemClock,
+                hasNotificationPermission = hasNotificationPermission,
+                canScheduleExactAlarms = canScheduleExactAlarms,
+                canUseFullScreenIntent = canUseFullScreenIntent,
+                isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
+                onOpenNotificationSettings = onOpenNotificationSettings,
+                onOpenExactAlarmSettings = onOpenExactAlarmSettings,
+                onOpenFullScreenSettings = onOpenFullScreenSettings,
+                onOpenBatterySettings = onOpenBatterySettings,
             )
         }
     }

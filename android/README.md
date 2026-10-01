@@ -1,6 +1,6 @@
 # StudyBuddy for Android
 
-原生 Android 学习计划闹钟，使用 Kotlin、Jetpack Compose 和系统 `AlarmClock` Intent。最低支持 Android 8.0（API 26）。
+原生 Android 学习计划闹钟，使用 Kotlin、Jetpack Compose 和 `AlarmManager`。最低支持 Android 8.0（API 26）。
 
 ## 功能
 
@@ -13,22 +13,22 @@
 
 ## 闹钟机制
 
-启用计划时，每个提醒通过 `AlarmClock.ACTION_SET_ALARM` 写入设备自带的系统时钟，并携带：
+每个提醒使用 `AlarmManager.setAlarmClock` 提交下一次精确触发，`PendingIntent` 直接指向 `AlarmActivity`，不走广播中转，规避 Android 12+ 后台启动限制。锁屏时 Activity 全屏弹出、唤醒屏幕、循环播放系统闹钟铃声和震动，用户按停止后 App 立即计算并提交下一周的同项提醒。
 
-- 小时和分钟
-- 每周重复日期
-- `StudyBuddy · 计划名 · 提醒名` 标签
-- 震动开关
+应用还会在以下事件后重建全部已启用闹钟：
 
-闹钟由系统时钟负责持久化、开机恢复、锁屏显示和响铃，不依赖 StudyBuddy 进程、后台服务或通知权限。
+- 设备启动完成
+- 应用升级完成
+- 系统时间或时区变化
 
-Android 公共 API 没有删除系统时钟闹钟的操作。`ACTION_DISMISS_ALARM` 对重复闹钟只跳过下一次，并不会删除或停用整组重复规则。因此：
+启用计划前，应用会按 Android 版本检查并逐项引导：
 
-- 创建可由 StudyBuddy 自动完成
-- 修改计划会创建新闹钟，旧闹钟需手动删除
-- 停用或删除计划后，App 会打开系统时钟，由用户删除带 `StudyBuddy` 标签的旧闹钟
+- 通知权限
+- 精确闹钟权限
+- 全屏提醒权限
+- 电池优化不受限
 
-这种设计优先保证响铃可靠性，并避免依赖厂商后台保活策略。
+部分厂商（Xiaomi、OPPO 等）会额外限制后台自启动与保活，首次安装后建议在真机做一次锁屏试响，并在系统设置里允许 StudyBuddy 自启动。
 
 ## 本地构建
 

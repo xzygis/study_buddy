@@ -61,12 +61,13 @@ class PlanViewModel(
         record.wantsEnabled &&
             !record.pendingDeletion &&
             record.phase == SyncPhase.ON &&
-            record.installedInSystemClock &&
-            record.bindings.isNotEmpty()
+            scheduler.canScheduleExactAlarms() &&
+            record.bindings.isNotEmpty() &&
+            record.bindings.all { scheduler.exists(it.id) }
 
     fun statusText(record: PlanRecord): String = when {
         record.pendingDeletion -> "待清理后删除"
-        isEnabled(record) -> "已提交到系统时钟"
+        isEnabled(record) -> "已启用"
         record.phase == SyncPhase.ATTENTION -> "需要处理"
         record.wantsEnabled -> if (state.value.isBusy) "正在同步" else "待核对"
         record.bindings.isEmpty() -> "未启用"
@@ -94,21 +95,12 @@ class PlanViewModel(
                 },
             )
             persistRecord(updated)
-            if (updated.wantsEnabled || updated.bindings.isNotEmpty()) {
-                synchronize(updated.plan.id)
-                if (existing.installedInSystemClock) {
-                    showMessage("新时间已写入；请到系统时钟中删除该计划的旧闹钟。")
-                }
-            }
+            if (updated.wantsEnabled || updated.bindings.isNotEmpty()) synchronize(updated.plan.id)
         }
         onSaved()
     }
 
-    fun setEnabled(
-        planId: String,
-        enabled: Boolean,
-        onCompleted: () -> Unit = {},
-    ) = launchOperation {
+    fun setEnabled(planId: String, enabled: Boolean) = launchOperation {
         val record = record(planId) ?: return@launchOperation
         persistRecord(
             record.copy(
@@ -118,10 +110,6 @@ class PlanViewModel(
             ),
         )
         synchronize(planId)
-        if (!enabled && record.installedInSystemClock) {
-            showMessage("计划已停用；请到系统时钟中手动删除对应闹钟。")
-        }
-        onCompleted()
     }
 
     fun delete(planId: String, onDeleted: () -> Unit = {}) = launchOperation {
@@ -134,9 +122,6 @@ class PlanViewModel(
             ),
         )
         synchronize(planId)
-        if (record.installedInSystemClock) {
-            showMessage("计划已删除；请到系统时钟中手动删除对应闹钟。")
-        }
         if (record(planId) == null) onDeleted()
     }
 
@@ -145,38 +130,38 @@ class PlanViewModel(
     fun reconcile() = launchOperation {
         val records = state.value.database.records.toList()
         records.forEach { original ->
+            val allPresent = original.bindings.isNotEmpty() &&
+                original.bindings.all { scheduler.exists(it.id) }
             when {
                 original.pendingDeletion -> {
-                    cleanupLegacy(original)
+                    cancelAll(original.bindings)
                     removeRecord(original.plan.id)
                 }
                 original.wantsEnabled &&
                     original.phase == SyncPhase.ON &&
-                    original.installedInSystemClock &&
-                    original.bindings.isNotEmpty() -> Unit
+                    scheduler.canScheduleExactAlarms() &&
+                    allPresent -> Unit
                 !original.wantsEnabled && original.bindings.isEmpty() -> {
                     if (original.phase != SyncPhase.OFF || original.issue != null) {
-                        persistRecord(
-                            original.copy(
-                                phase = SyncPhase.OFF,
-                                issue = null,
-                                installedInSystemClock = false,
-                            ),
-                        )
+                        persistRecord(original.copy(phase = SyncPhase.OFF, issue = null))
                     }
                 }
                 else -> {
-                    cleanupLegacy(original)
+                    cancelAll(original.bindings)
+                    val issue = if (original.wantsEnabled) {
+                        if (!scheduler.canScheduleExactAlarms()) {
+                            "精确闹钟权限未开启，计划未生效。"
+                        } else {
+                            "系统闹钟缺失或同步中断，已清理整组，请重试启用。"
+                        }
+                    } else {
+                        null
+                    }
                     persistRecord(
                         original.copy(
                             bindings = emptyList(),
                             phase = if (original.wantsEnabled) SyncPhase.ATTENTION else SyncPhase.OFF,
-                            issue = if (original.wantsEnabled) {
-                                "已切换为系统时钟模式，请重新启用此计划。"
-                            } else {
-                                null
-                            },
-                            installedInSystemClock = false,
+                            issue = issue,
                         ),
                     )
                 }
@@ -190,12 +175,8 @@ class PlanViewModel(
 
     private suspend fun synchronize(planId: String) {
         var record = record(planId) ?: return
-        cleanupLegacy(record)
-        record = record(planId)?.copy(
-            bindings = emptyList(),
-            issue = null,
-            installedInSystemClock = false,
-        ) ?: return
+        cancelAll(record.bindings)
+        record = record(planId)?.copy(bindings = emptyList(), issue = null) ?: return
         persistRecord(record)
 
         if (record.pendingDeletion) {
@@ -206,23 +187,29 @@ class PlanViewModel(
             persistRecord(record.copy(phase = SyncPhase.OFF))
             return
         }
+        if (!scheduler.canScheduleExactAlarms()) {
+            persistRecord(
+                record.copy(
+                    phase = SyncPhase.ATTENTION,
+                    issue = "精确闹钟权限未开启，计划未生效。",
+                ),
+            )
+            return
+        }
+
         val bindings = AlarmBinding.forPlan(record.plan)
         record = record.copy(bindings = bindings, phase = SyncPhase.INSTALLING)
         persistRecord(record)
         try {
-            bindings.forEach { scheduler.schedule(record.plan.name, it) }
-            persistRecord(
-                record.copy(
-                    phase = SyncPhase.ON,
-                    issue = null,
-                    installedInSystemClock = true,
-                ),
-            )
+            bindings.forEach { scheduler.schedule(planId, it) }
+            persistRecord(record.copy(phase = SyncPhase.ON, issue = null))
         } catch (error: Exception) {
+            cancelAll(bindings)
             persistRecord(
                 record.copy(
+                    bindings = emptyList(),
                     phase = SyncPhase.ATTENTION,
-                    issue = "系统时钟可能只写入了部分闹钟，请打开系统时钟核对。${error.message.orEmpty()}",
+                    issue = "整组闹钟未生效，已回滚。${error.message.orEmpty()}",
                 ),
             )
         }
@@ -264,9 +251,8 @@ class PlanViewModel(
     private fun record(planId: String) =
         state.value.database.records.firstOrNull { it.plan.id == planId }
 
-    private fun cleanupLegacy(record: PlanRecord) {
-        if (record.installedInSystemClock) return
-        record.bindings.forEach { runCatching { scheduler.cancelLegacyAlarm(it.id) } }
+    private fun cancelAll(bindings: List<AlarmBinding>) {
+        bindings.forEach { runCatching { scheduler.cancel(it.id) } }
     }
 
     private fun failStorage(error: Throwable) {

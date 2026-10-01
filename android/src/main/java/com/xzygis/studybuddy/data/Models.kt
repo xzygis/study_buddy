@@ -118,7 +118,6 @@ data class PlanRecord(
     val phase: SyncPhase = SyncPhase.OFF,
     val bindings: List<AlarmBinding> = emptyList(),
     val issue: String? = null,
-    val installedInSystemClock: Boolean = false,
 )
 
 @Serializable
