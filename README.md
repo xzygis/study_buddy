@@ -41,11 +41,22 @@ StudyBuddy 是一款面向家庭学习安排的原生 iOS、iPadOS 和 Android �
 
 ## 界面预览
 
-<p align="center">
-  <img src="ios/Screenshots/iphone-home.png" width="260" alt="StudyBuddy iPhone 今日计划" />
-  &nbsp;&nbsp;&nbsp;
-  <img src="ios/Screenshots/ipad-home.png" width="430" alt="StudyBuddy iPad 今日计划" />
-</p>
+<table align="center">
+  <thead>
+    <tr>
+      <th>iPhone</th>
+      <th>iPad</th>
+      <th>Android</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><img src="ios/Screenshots/iphone-home.png" width="220" alt="StudyBuddy iPhone 今日计划" /></td>
+      <td><img src="ios/Screenshots/ipad-home.png" width="360" alt="StudyBuddy iPad 今日计划" /></td>
+      <td><img src="android/Screenshots/android-home.png" width="220" alt="StudyBuddy Android 今日计划" /></td>
+    </tr>
+  </tbody>
+</table>
 
 ## 技术栈
 
