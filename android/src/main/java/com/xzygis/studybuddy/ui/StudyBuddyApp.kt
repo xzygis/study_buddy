@@ -1,0 +1,727 @@
+package com.xzygis.studybuddy.ui
+
+import android.app.TimePickerDialog
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SportsBasketball
+import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.outlined.Alarm
+import androidx.compose.material.icons.outlined.NotificationsOff
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.xzygis.studybuddy.PlanViewModel
+import com.xzygis.studybuddy.data.PlanRecord
+import com.xzygis.studybuddy.data.StudyPlan
+import com.xzygis.studybuddy.data.StudyReminder
+import com.xzygis.studybuddy.data.Weekday
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+private enum class MainScreen { TODAY, PLANS }
+
+@Composable
+fun StudyBuddyApp(
+    viewModel: PlanViewModel,
+    hasNotificationPermission: Boolean,
+    canScheduleExactAlarms: Boolean,
+    canUseFullScreenIntent: Boolean,
+    onEnablePlan: (String) -> Unit,
+    onOpenNotificationSettings: () -> Unit,
+    onOpenExactAlarmSettings: () -> Unit,
+    onOpenFullScreenSettings: () -> Unit,
+) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    var screen by remember { mutableStateOf(MainScreen.TODAY) }
+    var editingPlan by remember { mutableStateOf<StudyPlan?>(null) }
+    val snackbar = remember { SnackbarHostState() }
+
+    LaunchedEffect(state.message) {
+        state.message?.let {
+            snackbar.showSnackbar(it)
+            viewModel.clearMessage()
+        }
+    }
+
+    editingPlan?.let { plan ->
+        PlanEditorScreen(
+            plan = plan,
+            isExisting = state.database.records.any { it.plan.id == plan.id },
+            isBusy = state.isBusy,
+            onBack = { editingPlan = null },
+            onSave = { viewModel.save(it) { editingPlan = null } },
+            onDelete = {
+                viewModel.delete(plan.id) { editingPlan = null }
+            },
+        )
+        return
+    }
+
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        if (maxWidth >= 700.dp) {
+            TabletLayout(
+                viewModel = viewModel,
+                records = state.database.records,
+                isBusy = state.isBusy,
+                hasNotificationPermission = hasNotificationPermission,
+                canScheduleExactAlarms = canScheduleExactAlarms,
+                canUseFullScreenIntent = canUseFullScreenIntent,
+                onEnablePlan = onEnablePlan,
+                onOpenNotificationSettings = onOpenNotificationSettings,
+                onOpenExactAlarmSettings = onOpenExactAlarmSettings,
+                onOpenFullScreenSettings = onOpenFullScreenSettings,
+                onEdit = { editingPlan = it },
+                snackbar = snackbar,
+            )
+        } else {
+            Scaffold(
+                containerColor = AppBackground,
+                snackbarHost = { SnackbarHost(snackbar) },
+                bottomBar = {
+                    NavigationBar {
+                        NavigationBarItem(
+                            selected = screen == MainScreen.TODAY,
+                            onClick = { screen = MainScreen.TODAY },
+                            icon = { Icon(Icons.Default.CalendarMonth, null) },
+                            label = { Text("今天") },
+                        )
+                        NavigationBarItem(
+                            selected = screen == MainScreen.PLANS,
+                            onClick = { screen = MainScreen.PLANS },
+                            icon = { Icon(Icons.Default.GridView, null) },
+                            label = { Text("计划") },
+                        )
+                    }
+                },
+                floatingActionButton = {
+                    if (screen == MainScreen.PLANS) {
+                        FloatingActionButton(
+                            onClick = { editingPlan = StudyPlan.draft() },
+                            containerColor = StudyGreen,
+                            contentColor = Color.White,
+                        ) {
+                            Icon(Icons.Default.Add, "新建计划")
+                        }
+                    }
+                },
+            ) { padding ->
+                when (screen) {
+                    MainScreen.TODAY -> TodayScreen(
+                        modifier = Modifier.padding(padding),
+                        viewModel = viewModel,
+                        records = state.database.records,
+                        hasNotificationPermission = hasNotificationPermission,
+                        canScheduleExactAlarms = canScheduleExactAlarms,
+                        canUseFullScreenIntent = canUseFullScreenIntent,
+                        onOpenNotificationSettings = onOpenNotificationSettings,
+                        onOpenExactAlarmSettings = onOpenExactAlarmSettings,
+                        onOpenFullScreenSettings = onOpenFullScreenSettings,
+                    )
+                    MainScreen.PLANS -> PlansScreen(
+                        modifier = Modifier.padding(padding),
+                        viewModel = viewModel,
+                        records = state.database.records,
+                        isBusy = state.isBusy,
+                        onEnablePlan = onEnablePlan,
+                        onEdit = { editingPlan = it },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TodayScreen(
+    modifier: Modifier,
+    viewModel: PlanViewModel,
+    records: List<PlanRecord>,
+    hasNotificationPermission: Boolean,
+    canScheduleExactAlarms: Boolean,
+    canUseFullScreenIntent: Boolean,
+    onOpenNotificationSettings: () -> Unit,
+    onOpenExactAlarmSettings: () -> Unit,
+    onOpenFullScreenSettings: () -> Unit,
+) {
+    val today = LocalDate.now()
+    val weekday = Weekday.entries[today.dayOfWeek.value - 1]
+    val entries = records
+        .filter { viewModel.isEnabled(it) && weekday in it.plan.weekdays }
+        .flatMap { record -> record.plan.reminders.map { record.plan.name to it } }
+        .sortedBy { it.second.minutesSinceMidnight }
+
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        item {
+            Text("今日计划", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        }
+        item {
+            DateSummary(today, entries.size)
+        }
+        if (!hasNotificationPermission) {
+            item { PermissionBanner("通知权限未开启，闹钟无法响铃", onOpenNotificationSettings) }
+        } else if (!canScheduleExactAlarms) {
+            item { PermissionBanner("精确闹钟权限未开启，计划不会准时触发", onOpenExactAlarmSettings) }
+        } else if (!canUseFullScreenIntent) {
+            item { PermissionBanner("全屏提醒未开启，锁屏时只显示通知", onOpenFullScreenSettings) }
+        }
+        item {
+            Text(
+                "今日时间轴",
+                modifier = Modifier.padding(top = 8.dp),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+        if (entries.isEmpty()) {
+            item {
+                EmptyToday()
+            }
+        } else {
+            items(entries, key = { it.second.id }) { (planName, reminder) ->
+                TimelineRow(planName, reminder)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DateSummary(date: LocalDate, count: Int) {
+    Card(
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = CardDefaults.outlinedCardBorder(),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Surface(
+                modifier = Modifier.size(52.dp),
+                shape = RoundedCornerShape(8.dp),
+                color = Color(0xFFFFF0DF),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.WbSunny, null, tint = StudyOrange, modifier = Modifier.size(28.dp))
+                }
+            }
+            Column {
+                Text(
+                    date.format(DateTimeFormatter.ofPattern("M月d日 EEEE", Locale.CHINA)),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    if (count == 0) "今天暂时没有已启用的提醒" else "今天有 $count 项安排",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PermissionBanner(text: String, onClick: () -> Unit) {
+    Surface(color = Color(0xFFFFF3E5), shape = RoundedCornerShape(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Outlined.NotificationsOff, null, tint = StudyOrange)
+            Text(text, modifier = Modifier.padding(start = 10.dp).weight(1f), style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = onClick) { Text("设置") }
+        }
+    }
+}
+
+@Composable
+private fun EmptyToday() {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 64.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(Icons.Outlined.Alarm, null, modifier = Modifier.size(52.dp), tint = MaterialTheme.colorScheme.outline)
+        Text("今天没有已启用的安排", modifier = Modifier.padding(top = 18.dp), fontWeight = FontWeight.Bold)
+        Text(
+            "从计划页启用计划，提醒会按时间显示在这里。",
+            modifier = Modifier.padding(top = 6.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+@Composable
+private fun TimelineRow(planName: String, reminder: StudyReminder) {
+    val now = LocalTime.now().toSecondOfDay() / 60
+    val state = when {
+        now < reminder.minutesSinceMidnight -> "未开始" to MaterialTheme.colorScheme.onSurfaceVariant
+        now <= reminder.minutesSinceMidnight + 40 -> "进行中" to StudyOrange
+        else -> "已提醒" to StudyGreen
+    }
+    Row(verticalAlignment = Alignment.Top) {
+        Text(
+            reminder.timeText,
+            modifier = Modifier.width(58.dp).padding(top = 18.dp),
+            fontWeight = FontWeight.Bold,
+        )
+        Box(
+            modifier = Modifier.padding(top = 22.dp).size(9.dp).background(state.second, CircleShape),
+        )
+        Card(
+            modifier = Modifier.padding(start = 12.dp).fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            border = CardDefaults.outlinedCardBorder(),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(reminderIcon(reminder.name), null, tint = StudyGreen)
+                Column(Modifier.weight(1f)) {
+                    Text(reminder.name, fontWeight = FontWeight.Bold)
+                    Text(planName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Surface(color = state.second.copy(alpha = 0.10f), shape = CircleShape) {
+                    Text(state.first, modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp), color = state.second, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+    }
+}
+
+private fun reminderIcon(name: String): ImageVector = when {
+    "餐" in name -> Icons.Default.Restaurant
+    "篮球" in name || "户外" in name -> Icons.Default.SportsBasketball
+    "检查" in name || "整理" in name -> Icons.Default.Checklist
+    else -> Icons.Default.Book
+}
+
+@Composable
+private fun PlansScreen(
+    modifier: Modifier,
+    viewModel: PlanViewModel,
+    records: List<PlanRecord>,
+    isBusy: Boolean,
+    onEnablePlan: (String) -> Unit,
+    onEdit: (StudyPlan) -> Unit,
+) {
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, top = 20.dp, end = 16.dp, bottom = 96.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item {
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text("我的计划", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                Text("${records.size} 组", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        items(records, key = { it.plan.id }) { record ->
+            PlanCard(viewModel, record, isBusy, onEnablePlan, onEdit)
+        }
+        item {
+            Text(
+                "启用成功后由 Android 系统管理闹钟，无需保持 App 打开。",
+                modifier = Modifier.padding(8.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlanCard(
+    viewModel: PlanViewModel,
+    record: PlanRecord,
+    isBusy: Boolean,
+    onEnablePlan: (String) -> Unit,
+    onEdit: (StudyPlan) -> Unit,
+) {
+    Card(
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = CardDefaults.outlinedCardBorder(),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Text(record.plan.name, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                "${record.plan.repeatText} · ${record.plan.reminders.size} 项",
+                modifier = Modifier.padding(top = 4.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            HorizontalDivider(Modifier.padding(vertical = 12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    if (viewModel.isEnabled(record)) Icons.Default.Alarm else Icons.Outlined.Alarm,
+                    null,
+                    tint = if (viewModel.isEnabled(record)) StudyGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    viewModel.statusText(record),
+                    modifier = Modifier.padding(start = 8.dp).weight(1f),
+                    color = if (viewModel.isEnabled(record)) StudyGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Switch(
+                    checked = viewModel.isEnabled(record),
+                    onCheckedChange = { enabled ->
+                        if (enabled) onEnablePlan(record.plan.id) else viewModel.setEnabled(record.plan.id, false)
+                    },
+                    enabled = !isBusy && !record.pendingDeletion,
+                )
+            }
+            record.issue?.let {
+                Text(it, modifier = Modifier.padding(top = 8.dp), color = StudyOrange, style = MaterialTheme.typography.bodySmall)
+            }
+            Row(modifier = Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { onEdit(record.plan) }, enabled = !isBusy) {
+                    Icon(Icons.Default.Edit, null, modifier = Modifier.size(18.dp))
+                    Text("编辑", modifier = Modifier.padding(start = 7.dp))
+                }
+                TextButton(
+                    onClick = {
+                        onEdit(record.plan.editableCopy(record.plan.name.take(37) + " 副本"))
+                    },
+                    enabled = !isBusy,
+                ) {
+                    Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(18.dp))
+                    Text("复制", modifier = Modifier.padding(start = 7.dp))
+                }
+                if (record.phase == com.xzygis.studybuddy.data.SyncPhase.ATTENTION) {
+                    TextButton(onClick = { viewModel.retry(record.plan.id) }, enabled = !isBusy) {
+                        Text("重试")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TabletLayout(
+    viewModel: PlanViewModel,
+    records: List<PlanRecord>,
+    isBusy: Boolean,
+    hasNotificationPermission: Boolean,
+    canScheduleExactAlarms: Boolean,
+    canUseFullScreenIntent: Boolean,
+    onEnablePlan: (String) -> Unit,
+    onOpenNotificationSettings: () -> Unit,
+    onOpenExactAlarmSettings: () -> Unit,
+    onOpenFullScreenSettings: () -> Unit,
+    onEdit: (StudyPlan) -> Unit,
+    snackbar: SnackbarHostState,
+) {
+    Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding ->
+        Row(Modifier.padding(padding).fillMaxSize()) {
+            NavigationRail(
+                header = {
+                    FloatingActionButton(
+                        onClick = { onEdit(StudyPlan.draft()) },
+                        modifier = Modifier.padding(vertical = 12.dp),
+                        containerColor = StudyGreen,
+                        contentColor = Color.White,
+                    ) { Icon(Icons.Default.Add, "新建计划") }
+                },
+            ) {
+                NavigationRailItem(selected = true, onClick = {}, icon = { Icon(Icons.Default.CalendarMonth, null) }, label = { Text("今天") })
+                NavigationRailItem(selected = false, onClick = {}, icon = { Icon(Icons.Default.GridView, null) }, label = { Text("计划") })
+            }
+            Surface(modifier = Modifier.width(320.dp).fillMaxHeight(), color = Color(0xFFF0F3F2)) {
+                PlansScreen(
+                    modifier = Modifier,
+                    viewModel = viewModel,
+                    records = records,
+                    isBusy = isBusy,
+                    onEnablePlan = onEnablePlan,
+                    onEdit = onEdit,
+                )
+            }
+            TodayScreen(
+                modifier = Modifier.weight(1f),
+                viewModel = viewModel,
+                records = records,
+                hasNotificationPermission = hasNotificationPermission,
+                canScheduleExactAlarms = canScheduleExactAlarms,
+                canUseFullScreenIntent = canUseFullScreenIntent,
+                onOpenNotificationSettings = onOpenNotificationSettings,
+                onOpenExactAlarmSettings = onOpenExactAlarmSettings,
+                onOpenFullScreenSettings = onOpenFullScreenSettings,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun PlanEditorScreen(
+    plan: StudyPlan,
+    isExisting: Boolean,
+    isBusy: Boolean,
+    onBack: () -> Unit,
+    onSave: (StudyPlan) -> Unit,
+    onDelete: () -> Unit,
+) {
+    var draft by remember(plan.id) { mutableStateOf(plan) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    BackHandler(onBack = onBack)
+
+    Scaffold(
+        containerColor = AppBackground,
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text(if (isExisting) "编辑计划" else "新建计划", fontWeight = FontWeight.Bold) },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") } },
+                actions = {
+                    TextButton(
+                        onClick = { onSave(draft) },
+                        enabled = !isBusy && draft.validationMessage() == null,
+                    ) { Text("保存", fontWeight = FontWeight.Bold) }
+                },
+            )
+        },
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.padding(padding).fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
+            item {
+                Column {
+                    Text("计划名称", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+                    OutlinedTextField(
+                        value = draft.name,
+                        onValueChange = { draft = draft.copy(name = it) },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        singleLine = true,
+                        placeholder = { Text("例如：上学日、周末") },
+                    )
+                }
+            }
+            item {
+                Column {
+                    Text("整组重复", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+                    FlowRow(
+                        modifier = Modifier.padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        OutlinedButton(onClick = { draft = draft.copy(weekdays = Weekday.entries.toSet()) }) { Text("每天") }
+                        OutlinedButton(onClick = { draft = draft.copy(weekdays = Weekday.schoolDays) }) { Text("周一至五") }
+                        OutlinedButton(onClick = { draft = draft.copy(weekdays = setOf(Weekday.SATURDAY, Weekday.SUNDAY)) }) { Text("周末") }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
+                        Weekday.entries.forEach { day ->
+                            val selected = day in draft.weekdays
+                            Surface(
+                                modifier = Modifier.weight(1f).height(44.dp).clickable {
+                                    draft = draft.copy(
+                                        weekdays = if (selected) draft.weekdays - day else draft.weekdays + day,
+                                    )
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (selected) StudyGreen else Color.White,
+                                border = if (selected) null else CardDefaults.outlinedCardBorder(),
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(day.shortName, color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                    Text(
+                        if (draft.weekdays.isEmpty()) "请至少选择一天。" else "${draft.repeatText}重复，应用于下面所有提醒。",
+                        modifier = Modifier.padding(top = 8.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("提醒事项", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+                    Spacer(Modifier.weight(1f))
+                    Text("${draft.reminders.size} 项", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            items(draft.reminders, key = { it.id }) { reminder ->
+                ReminderEditor(
+                    reminder = reminder,
+                    onChange = { changed ->
+                        draft = draft.copy(reminders = draft.reminders.map { if (it.id == changed.id) changed else it })
+                    },
+                    onDelete = {
+                        draft = draft.copy(reminders = draft.reminders.filterNot { it.id == reminder.id })
+                    },
+                )
+            }
+            item {
+                OutlinedButton(
+                    onClick = {
+                        draft = draft.copy(
+                            reminders = draft.reminders + StudyReminder(name = "", hour = 9, minute = 0),
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                ) {
+                    Icon(Icons.Default.Add, null)
+                    Text("添加提醒", modifier = Modifier.padding(start = 8.dp))
+                }
+            }
+            draft.validationMessage()?.let { message ->
+                item {
+                    Text(message, color = StudyOrange, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            if (isExisting) {
+                item {
+                    TextButton(onClick = { confirmDelete = true }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.Delete, null)
+                        Text("删除计划", modifier = Modifier.padding(start = 8.dp))
+                    }
+                }
+            }
+        }
+    }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("删除“${draft.name}”？") },
+            text = { Text("删除前会取消整组系统闹钟。此操作无法撤销。") },
+            confirmButton = { TextButton(onClick = onDelete) { Text("删除") } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } },
+        )
+    }
+}
+
+@Composable
+private fun ReminderEditor(
+    reminder: StudyReminder,
+    onChange: (StudyReminder) -> Unit,
+    onDelete: () -> Unit,
+) {
+    val context = LocalContext.current
+    Card(
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = CardDefaults.outlinedCardBorder(),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = reminder.name,
+                    onValueChange = { onChange(reminder.copy(name = it)) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    label = { Text("科目或提醒名称") },
+                )
+                IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "删除提醒") }
+            }
+            ListItem(
+                headlineContent = { Text("开始时间") },
+                trailingContent = {
+                    TextButton(
+                        onClick = {
+                            TimePickerDialog(
+                                context,
+                                { _, hour, minute -> onChange(reminder.copy(hour = hour, minute = minute)) },
+                                reminder.hour,
+                                reminder.minute,
+                                true,
+                            ).show()
+                        },
+                    ) {
+                        Text(reminder.timeText, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
+                },
+            )
+        }
+    }
+}

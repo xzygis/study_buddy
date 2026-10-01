@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UI Preview</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --primary-light: #e0e7ff;
+            --secondary: #64748b;
+            --success: #22c55e;
+            --error: #ef4444;
+            --warning: #f59e0b;
+            --background: #f8fafc;
+            --surface: #ffffff;
+            --border: #e2e8f0;
+            --text: #1e293b;
+            --text-secondary: #64748b;
+            --text-muted: #94a3b8;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            --radius: 8px;
+            --radius-lg: 12px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: var(--background);
+            color: var(--text);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        .preview-layout {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .preview-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 20px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .preview-header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .preview-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .preview-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .page-count {
+            background: var(--primary-light);
+            color: var(--primary);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .canvas-zoom-controls {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 4px;
+        }
+
+        .zoom-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border: none;
+            border-radius: 4px;
+            background: transparent;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .zoom-btn:hover {
+            background: var(--primary-light);
+            color: var(--primary);
+        }
+
+        .zoom-level {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            min-width: 45px;
+            text-align: center;
+        }
+
+        .canvas-container {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+            background: #e5e5e5;
+            background-image:
+                linear-gradient(45deg, #d5d5d5 25%, transparent 25%),
+                linear-gradient(-45deg, #d5d5d5 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #d5d5d5 75%),
+                linear-gradient(-45deg, transparent 75%, #d5d5d5 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+
+        .canvas-viewport {
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform-origin: 0 0;
+            cursor: grab;
+            min-width: 100%;
+            min-height: 100%;
+        }
+
+        .canvas-viewport.dragging {
+            cursor: grabbing;
+        }
+
+        .pages-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--text-muted);
+            text-align: center;
+            background: var(--surface);
+            padding: 40px;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow);
+            z-index: 1;
+        }
+
+        .pages-placeholder svg {
+            margin-bottom: 16px;
+            opacity: 0.4;
+        }
+
+        .pages-placeholder p {
+            font-size: 14px;
+        }
+
+        .canvas-page-item {
+            position: absolute;
+            cursor: move;
+            z-index: 10;
+        }
+
+        .canvas-page-item:hover .canvas-page-image-container {
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+        }
+
+        .canvas-page-item.dragging {
+            z-index: 1000;
+        }
+
+        .canvas-page-label {
+            padding: 0 4px 8px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text);
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .canvas-page-image-container {
+            background: var(--surface);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+            transition: box-shadow 0.2s;
+        }
+
+        .canvas-page-iframe-wrapper {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .canvas-page-iframe {
+            transform-origin: top left;
+            pointer-events: none;
+            border: none;
+        }
+
+        .page-hover-menu {
+            position: fixed;
+            background: var(--surface);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+            padding: 12px;
+            z-index: 2000;
+            min-width: 200px;
+            pointer-events: auto;
+        }
+
+        .hover-menu-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .hover-menu-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .hover-menu-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .hover-action-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            background: var(--background);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .hover-action-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            background: var(--primary-light);
+        }
+
+        .error-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--surface);
+            padding: 24px 32px;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-lg);
+            text-align: center;
+            z-index: 100;
+        }
+
+        .error-message h3 {
+            color: var(--error);
+            margin-bottom: 8px;
+        }
+
+        .error-message p {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .navigation-lines-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: visible;
+        }
+
+        .quick-mod-input {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border);
+        }
+
+        .quick-mod-input textarea {
+            width: 100%;
+            min-height: 80px;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 13px;
+            font-family: inherit;
+            resize: vertical;
+            margin-bottom: 8px;
+        }
+
+        .quick-mod-input textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px var(--primary-light);
+        }
+
+        .quick-mod-submit {
+            width: 100%;
+            padding: 8px 16px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: var(--radius);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .quick-mod-submit:hover {
+            background: var(--primary-hover);
+        }
+    </style>
+</head>
+<body>
+    <div class="preview-layout">
+        <header class="preview-header">
+            <div class="preview-header-left">
+                <h1 class="preview-title">UI Preview</h1>
+                <span class="page-count" id="pageCount">0 pages</span>
+            </div>
+            <div class="preview-header-actions">
+                <div class="canvas-zoom-controls">
+                    <button class="zoom-btn" id="zoomOutBtn" title="Zoom Out">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            <line x1="8" y1="11" x2="14" y2="11"></line>
+                        </svg>
+                    </button>
+                    <span class="zoom-level" id="zoomLevel">100%</span>
+                    <button class="zoom-btn" id="zoomInBtn" title="Zoom In">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            <line x1="11" y1="8" x2="11" y2="14"></line>
+                            <line x1="8" y1="11" x2="14" y2="11"></line>
+                        </svg>
+                    </button>
+                    <button class="zoom-btn" id="zoomResetBtn" title="Reset View">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <div class="canvas-container" id="canvasContainer">
+            <div class="canvas-viewport" id="canvasViewport">
+                <div class="pages-placeholder" id="pagesPlaceholder">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="3" y1="9" x2="21" y2="9"></line>
+                        <line x1="9" y1="21" x2="9" y2="9"></line>
+                    </svg>
+                    <p>Loading pages...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="page-hover-menu" id="pageHoverMenu" style="display: none;">
+            <div class="hover-menu-header">
+                <span class="hover-menu-title" id="hoverMenuTitle">Page Name</span>
+            </div>
+            <div class="hover-menu-actions">
+                <a class="hover-action-btn" id="hoverOpenPage" href="#" target="_blank">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                    </svg>
+                    Open Page
+                </a>
+                <button class="hover-action-btn" id="hoverQuickMod">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                    Quick Modification
+                </button>
+            </div>
+            <div class="quick-mod-input" id="quickModInput" style="display: none;">
+                <textarea id="quickModTextarea" placeholder="Describe the changes you want to make..."></textarea>
+                <button class="quick-mod-submit" id="quickModSubmit">Submit</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvasContainer = document.getElementById('canvasContainer');
+            const canvasViewport = document.getElementById('canvasViewport');
+            const pagesPlaceholder = document.getElementById('pagesPlaceholder');
+            const pageCount = document.getElementById('pageCount');
+            const zoomInBtn = document.getElementById('zoomInBtn');
+            const zoomOutBtn = document.getElementById('zoomOutBtn');
+            const zoomResetBtn = document.getElementById('zoomResetBtn');
+            const zoomLevelDisplay = document.getElementById('zoomLevel');
+            const pageHoverMenu = document.getElementById('pageHoverMenu');
+            const hoverMenuTitle = document.getElementById('hoverMenuTitle');
+            const hoverOpenPage = document.getElementById('hoverOpenPage');
+            const hoverQuickMod = document.getElementById('hoverQuickMod');
+            const quickModInput = document.getElementById('quickModInput');
+            const quickModTextarea = document.getElementById('quickModTextarea');
+            const quickModSubmit = document.getElementById('quickModSubmit');
+
+            let pagesData = {};
+            let activeHoverPageId = null;
+
+            let canvasState = {
+                scale: 1,
+                offsetX: 50,
+                offsetY: 50,
+                isDragging: false,
+                dragStartX: 0,
+                dragStartY: 0,
+                lastOffsetX: 0,
+                lastOffsetY: 0
+            };
+
+            let pagePositions = {};
+            let draggingPage = null;
+            let pageDragStart = { x: 0, y: 0, pageX: 0, pageY: 0 };
+            let navigationLinks = [];
+            let navigationSvg = null;
+
+            initializeCanvas();
+            initializeNavigationSvg();
+            loadStructure();
+
+            function initializeCanvas() {
+                updateCanvasTransform();
+
+                canvasContainer.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                    const newScale = Math.max(0.25, Math.min(2, canvasState.scale + delta));
+
+                    const rect = canvasContainer.getBoundingClientRect();
+                    const mouseX = e.clientX - rect.left;
+                    const mouseY = e.clientY - rect.top;
+
+                    const scaleChange = newScale / canvasState.scale;
+                    canvasState.offsetX = mouseX - (mouseX - canvasState.offsetX) * scaleChange;
+                    canvasState.offsetY = mouseY - (mouseY - canvasState.offsetY) * scaleChange;
+                    canvasState.scale = newScale;
+
+                    updateCanvasTransform();
+                });
+
+                canvasContainer.addEventListener('mousedown', (e) => {
+                    if (e.target === canvasContainer || e.target === canvasViewport) {
+                        canvasState.isDragging = true;
+                        canvasState.dragStartX = e.clientX;
+                        canvasState.dragStartY = e.clientY;
+                        canvasState.lastOffsetX = canvasState.offsetX;
+                        canvasState.lastOffsetY = canvasState.offsetY;
+                        canvasViewport.classList.add('dragging');
+                    }
+                });
+
+                document.addEventListener('mousemove', (e) => {
+                    if (canvasState.isDragging) {
+                        canvasState.offsetX = canvasState.lastOffsetX + (e.clientX - canvasState.dragStartX);
+                        canvasState.offsetY = canvasState.lastOffsetY + (e.clientY - canvasState.dragStartY);
+                        updateCanvasTransform();
+                    }
+
+                    if (draggingPage) {
+                        const dx = (e.clientX - pageDragStart.x) / canvasState.scale;
+                        const dy = (e.clientY - pageDragStart.y) / canvasState.scale;
+                        pagePositions[draggingPage].x = pageDragStart.pageX + dx;
+                        pagePositions[draggingPage].y = pageDragStart.pageY + dy;
+                        updatePagePosition(draggingPage);
+                    }
+                });
+
+                document.addEventListener('mouseup', () => {
+                    if (canvasState.isDragging) {
+                        canvasState.isDragging = false;
+                        canvasViewport.classList.remove('dragging');
+                    }
+                    if (draggingPage) {
+                        const pageEl = document.getElementById(`page-${draggingPage}`);
+                        if (pageEl) pageEl.classList.remove('dragging');
+                        draggingPage = null;
+                    }
+                });
+
+                zoomInBtn.addEventListener('click', () => {
+                    canvasState.scale = Math.min(2, canvasState.scale + 0.1);
+                    updateCanvasTransform();
+                });
+
+                zoomOutBtn.addEventListener('click', () => {
+                    canvasState.scale = Math.max(0.25, canvasState.scale - 0.1);
+                    updateCanvasTransform();
+                });
+
+                zoomResetBtn.addEventListener('click', () => {
+                    canvasState.scale = 1;
+                    canvasState.offsetX = 50;
+                    canvasState.offsetY = 50;
+                    updateCanvasTransform();
+                });
+            }
+
+            function updateCanvasTransform() {
+                canvasViewport.style.transform = `translate(${canvasState.offsetX}px, ${canvasState.offsetY}px) scale(${canvasState.scale})`;
+                zoomLevelDisplay.textContent = `${Math.round(canvasState.scale * 100)}%`;
+            }
+
+            function initializeNavigationSvg() {
+                navigationSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                navigationSvg.setAttribute('class', 'navigation-lines-svg');
+                navigationSvg.style.cssText = 'position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible;';
+
+                const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+                const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+                marker.setAttribute('id', 'arrowhead');
+                marker.setAttribute('markerWidth', '10');
+                marker.setAttribute('markerHeight', '7');
+                marker.setAttribute('refX', '9');
+                marker.setAttribute('refY', '3.5');
+                marker.setAttribute('orient', 'auto');
+
+                const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                polygon.setAttribute('points', '0 0, 10 3.5, 0 7');
+                polygon.setAttribute('fill', '#6366f1');
+
+                marker.appendChild(polygon);
+                defs.appendChild(marker);
+                navigationSvg.appendChild(defs);
+
+                canvasViewport.insertBefore(navigationSvg, canvasViewport.firstChild);
+            }
+
+            function updateNavigationLines() {
+                if (!navigationSvg) return;
+
+                const existingLines = navigationSvg.querySelectorAll('.nav-link-path');
+                existingLines.forEach(line => line.remove());
+
+                const existingLabels = navigationSvg.querySelectorAll('.nav-link-label');
+                existingLabels.forEach(label => label.remove());
+
+                const biDirectionalPairs = new Set();
+                for (const link of navigationLinks) {
+                    const reverseLink = navigationLinks.find(l => l.from === link.to && l.to === link.from);
+                    if (reverseLink) {
+                        const pairKey = [link.from, link.to].sort().join('|');
+                        biDirectionalPairs.add(pairKey);
+                    }
+                }
+
+                const processedPairs = new Set();
+
+                for (const link of navigationLinks) {
+                    const fromPos = pagePositions[link.from];
+                    const toPos = pagePositions[link.to];
+
+                    if (!fromPos || !toPos) continue;
+
+                    const pairKey = [link.from, link.to].sort().join('|');
+                    const isBiDirectional = biDirectionalPairs.has(pairKey);
+                    const isFirstOfPair = !processedPairs.has(pairKey);
+
+                    if (isBiDirectional) {
+                        processedPairs.add(pairKey);
+                    }
+
+                    const path = calculateConnectionPath(fromPos, toPos, isBiDirectional, isFirstOfPair);
+
+                    const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    pathElement.setAttribute('class', 'nav-link-path');
+                    pathElement.setAttribute('d', path.d);
+                    pathElement.setAttribute('fill', 'none');
+                    pathElement.setAttribute('stroke', '#6366f1');
+                    pathElement.setAttribute('stroke-width', '2');
+                    pathElement.setAttribute('stroke-dasharray', '6,4');
+                    pathElement.setAttribute('marker-end', 'url(#arrowhead)');
+                    pathElement.setAttribute('opacity', '0.7');
+
+                    navigationSvg.appendChild(pathElement);
+
+                    if (link.label) {
+                        const labelGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                        labelGroup.setAttribute('class', 'nav-link-label');
+
+                        const labelBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                        const labelText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+
+                        let labelY = path.midY;
+                        if (isBiDirectional) {
+                            labelY = isFirstOfPair ? path.midY - 15 : path.midY + 15;
+                        }
+
+                        labelText.setAttribute('x', path.midX);
+                        labelText.setAttribute('y', labelY);
+                        labelText.setAttribute('text-anchor', 'middle');
+                        labelText.setAttribute('dominant-baseline', 'middle');
+                        labelText.setAttribute('fill', '#6366f1');
+                        labelText.setAttribute('font-size', '11');
+                        labelText.setAttribute('font-weight', '500');
+                        labelText.textContent = link.label;
+
+                        const textLength = link.label.length * 6 + 12;
+                        labelBg.setAttribute('x', path.midX - textLength / 2);
+                        labelBg.setAttribute('y', labelY - 10);
+                        labelBg.setAttribute('width', textLength);
+                        labelBg.setAttribute('height', '20');
+                        labelBg.setAttribute('rx', '4');
+                        labelBg.setAttribute('fill', 'var(--surface, #ffffff)');
+                        labelBg.setAttribute('stroke', '#6366f1');
+                        labelBg.setAttribute('stroke-width', '1');
+                        labelBg.setAttribute('opacity', '0.9');
+
+                        labelGroup.appendChild(labelBg);
+                        labelGroup.appendChild(labelText);
+                        navigationSvg.appendChild(labelGroup);
+                    }
+                }
+            }
+
+            function calculateConnectionPath(fromPos, toPos, isBiDirectional = false, isFirstOfPair = true) {
+                const fromCenterX = fromPos.x + fromPos.width / 2;
+                const fromCenterY = fromPos.y + fromPos.height / 2;
+                const toCenterX = toPos.x + toPos.width / 2;
+                const toCenterY = toPos.y + toPos.height / 2;
+
+                const labelHeight = 30;
+                const fromTop = fromPos.y - labelHeight;
+                const fromBottom = fromPos.y + fromPos.height;
+                const fromLeft = fromPos.x;
+                const fromRight = fromPos.x + fromPos.width;
+
+                const toTop = toPos.y - labelHeight;
+                const toBottom = toPos.y + toPos.height;
+                const toLeft = toPos.x;
+                const toRight = toPos.x + toPos.width;
+
+                const dx = toCenterX - fromCenterX;
+                const dy = toCenterY - fromCenterY;
+
+                let startX, startY, endX, endY;
+                const padding = 15;
+
+                const biOffset = isBiDirectional ? (isFirstOfPair ? -20 : 20) : 0;
+
+                if (Math.abs(dx) > Math.abs(dy)) {
+                    if (dx > 0) {
+                        startX = fromRight + padding;
+                        startY = fromCenterY + biOffset;
+                        endX = toLeft - padding;
+                        endY = toCenterY + biOffset;
+                    } else {
+                        startX = fromLeft - padding;
+                        startY = fromCenterY + biOffset;
+                        endX = toRight + padding;
+                        endY = toCenterY + biOffset;
+                    }
+                } else {
+                    if (dy > 0) {
+                        startX = fromCenterX + biOffset;
+                        startY = fromBottom + padding;
+                        endX = toCenterX + biOffset;
+                        endY = toTop - padding;
+                    } else {
+                        startX = fromCenterX + biOffset;
+                        startY = fromTop - padding;
+                        endX = toCenterX + biOffset;
+                        endY = toBottom + padding;
+                    }
+                }
+
+                const midX = (startX + endX) / 2;
+                const midY = (startY + endY) / 2;
+
+                let d;
+                if (Math.abs(dx) > Math.abs(dy) * 2 || Math.abs(dy) > Math.abs(dx) * 2) {
+                    d = `M ${startX} ${startY} L ${endX} ${endY}`;
+                } else {
+                    const controlOffset = Math.min(Math.abs(dx), Math.abs(dy)) * 0.5;
+                    if (Math.abs(dx) > Math.abs(dy)) {
+                        const ctrlX = midX;
+                        d = `M ${startX} ${startY} Q ${ctrlX} ${startY} ${midX} ${midY} Q ${ctrlX} ${endY} ${endX} ${endY}`;
+                    } else {
+                        const ctrlY = midY;
+                        d = `M ${startX} ${startY} Q ${startX} ${ctrlY} ${midX} ${midY} Q ${endX} ${ctrlY} ${endX} ${endY}`;
+                    }
+                }
+
+                return { d, midX, midY };
+            }
+
+            function setNavigationLinks(links) {
+                navigationLinks = links || [];
+                updateNavigationLines();
+            }
+
+            function centerCanvasView() {
+                if (Object.keys(pagePositions).length === 0) return;
+
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+                Object.values(pagePositions).forEach(pos => {
+                    if (pos.x < minX) minX = pos.x;
+                    if (pos.y < minY) minY = pos.y;
+                    if (pos.x + pos.width > maxX) maxX = pos.x + pos.width;
+                    if (pos.y + pos.height > maxY) maxY = pos.y + pos.height;
+                });
+
+                const contentWidth = maxX - minX;
+                const contentHeight = maxY - minY;
+                const contentCenterX = minX + contentWidth / 2;
+                const contentCenterY = minY + contentHeight / 2;
+
+                const containerRect = canvasContainer.getBoundingClientRect();
+                const viewportWidth = containerRect.width;
+                const viewportHeight = containerRect.height;
+                const viewportCenterX = viewportWidth / 2;
+                const viewportCenterY = viewportHeight / 2;
+
+                const padding = 60;
+                const availableWidth = viewportWidth - padding * 2;
+                const availableHeight = viewportHeight - padding * 2;
+
+                const scaleX = availableWidth / contentWidth;
+                const scaleY = availableHeight / contentHeight;
+                let fitScale = Math.min(scaleX, scaleY);
+
+                fitScale = Math.max(0.25, Math.min(2, fitScale));
+
+                canvasState.scale = fitScale;
+                canvasState.offsetX = viewportCenterX - contentCenterX * canvasState.scale;
+                canvasState.offsetY = viewportCenterY - contentCenterY * canvasState.scale;
+
+                updateCanvasTransform();
+            }
+
+            function calculateAutoLayout(pages, canvasLayout, navLinks) {
+                const positions = {};
+                const gap = 180;
+                const labelHeight = 30;
+
+                if (pages.length === 0) return positions;
+
+                const outgoingLinks = {};
+                const incomingLinks = {};
+
+                pages.forEach(p => {
+                    outgoingLinks[p.page_id] = [];
+                    incomingLinks[p.page_id] = [];
+                });
+
+                navLinks.forEach(link => {
+                    if (outgoingLinks[link.from]) {
+                        outgoingLinks[link.from].push(link.to);
+                    }
+                    if (incomingLinks[link.to]) {
+                        incomingLinks[link.to].push(link.from);
+                    }
+                });
+
+                let rootPage = null;
+                let maxOutgoing = -1;
+
+                pages.forEach(p => {
+                    const incoming = incomingLinks[p.page_id]?.length || 0;
+                    const outgoing = outgoingLinks[p.page_id]?.length || 0;
+
+                    if (incoming === 0 && outgoing > 0) {
+                        if (outgoing > maxOutgoing) {
+                            maxOutgoing = outgoing;
+                            rootPage = p.page_id;
+                        }
+                    }
+                });
+
+                if (!rootPage) {
+                    pages.forEach(p => {
+                        const outgoing = outgoingLinks[p.page_id]?.length || 0;
+                        if (outgoing > maxOutgoing) {
+                            maxOutgoing = outgoing;
+                            rootPage = p.page_id;
+                        }
+                    });
+                }
+
+                if (!rootPage && pages.length > 0) {
+                    rootPage = pages[0].page_id;
+                }
+
+                const levels = {};
+                const visited = new Set();
+                const queue = [{ id: rootPage, level: 0 }];
+                visited.add(rootPage);
+
+                while (queue.length > 0) {
+                    const { id, level } = queue.shift();
+
+                    if (!levels[level]) levels[level] = [];
+                    levels[level].push(id);
+
+                    const targets = outgoingLinks[id] || [];
+                    targets.forEach(targetId => {
+                        if (!visited.has(targetId)) {
+                            visited.add(targetId);
+                            queue.push({ id: targetId, level: level + 1 });
+                        }
+                    });
+                }
+
+                pages.forEach(p => {
+                    if (!visited.has(p.page_id)) {
+                        const lastLevel = Math.max(...Object.keys(levels).map(Number), 0);
+                        if (!levels[lastLevel + 1]) levels[lastLevel + 1] = [];
+                        levels[lastLevel + 1].push(p.page_id);
+                    }
+                });
+
+                const pageSizes = {};
+                pages.forEach(p => {
+                    const layout = canvasLayout[p.page_id] || {};
+                    const srcWidth = layout.width || 1440;
+                    const srcHeight = layout.height || 900;
+                    const isMobile = srcWidth < 500;
+                    pageSizes[p.page_id] = {
+                        srcWidth,
+                        srcHeight,
+                        displayWidth: isMobile ? 300 : 720,
+                        displayHeight: isMobile ? 650 : 405
+                    };
+                });
+
+                const levelKeys = Object.keys(levels).map(Number).sort((a, b) => a - b);
+                let currentX = 0;
+
+                levelKeys.forEach(levelNum => {
+                    const pageIds = levels[levelNum];
+
+                    let maxWidthInLevel = 0;
+                    pageIds.forEach(pageId => {
+                        const size = pageSizes[pageId];
+                        if (size.displayWidth > maxWidthInLevel) {
+                            maxWidthInLevel = size.displayWidth;
+                        }
+                    });
+
+                    let totalHeight = 0;
+                    pageIds.forEach((pageId, idx) => {
+                        const size = pageSizes[pageId];
+                        totalHeight += size.displayHeight + labelHeight;
+                        if (idx < pageIds.length - 1) totalHeight += gap;
+                    });
+
+                    let currentY = -totalHeight / 2;
+
+                    pageIds.forEach(pageId => {
+                        const size = pageSizes[pageId];
+                        positions[pageId] = {
+                            x: currentX + (maxWidthInLevel - size.displayWidth) / 2,
+                            y: currentY,
+                            width: size.displayWidth,
+                            height: size.displayHeight,
+                            srcWidth: size.srcWidth,
+                            srcHeight: size.srcHeight
+                        };
+                        currentY += size.displayHeight + labelHeight + gap;
+                    });
+
+                    currentX += maxWidthInLevel + gap * 2;
+                });
+
+                let minX = Infinity, minY = Infinity;
+                Object.values(positions).forEach(pos => {
+                    if (pos.x < minX) minX = pos.x;
+                    if (pos.y < minY) minY = pos.y;
+                });
+
+                Object.keys(positions).forEach(pageId => {
+                    positions[pageId].x -= minX;
+                    positions[pageId].y -= minY;
+                });
+
+                return positions;
+            }
+
+            async function loadStructure() {
+                try {
+                    const response = await fetch('structure.json');
+                    if (!response.ok) {
+                        throw new Error('structure.json not found');
+                    }
+
+                    const structure = await response.json();
+                    const canvasLayout = structure.canvas_layout || {};
+                    const pages = structure.pages || [];
+                    const navLinks = structure.navigation?.links_between_pages || [];
+
+                    if (pages.length === 0) {
+                        showError('No pages found', 'The structure.json file contains no pages.');
+                        return;
+                    }
+
+                    pagesPlaceholder.style.display = 'none';
+                    pageCount.textContent = `${pages.length} page${pages.length > 1 ? 's' : ''}`;
+
+                    const calculatedPositions = calculateAutoLayout(pages, canvasLayout, navLinks);
+
+                    pages.forEach(page => {
+                        const pageId = page.page_id;
+                        const pageName = page.page_name || pageId;
+                        const pos = calculatedPositions[pageId];
+
+                        if (!pos) return;
+
+                        pagesData[pageId] = {
+                            page_name: pageName,
+                            page_description: page.page_description || '',
+                            width: pos.srcWidth,
+                            height: pos.srcHeight
+                        };
+
+                        addPageToCanvas(pageId, pageName, pos);
+                    });
+
+                    if (navLinks.length > 0) {
+                        setNavigationLinks(navLinks);
+                    }
+
+                    centerCanvasView();
+
+                } catch (error) {
+                    console.error('Error loading structure:', error);
+                    showError('Failed to load structure', 'Make sure structure.json exists in the same directory as this file.');
+                }
+            }
+
+            function showError(title, message) {
+                pagesPlaceholder.innerHTML = `
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.5">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="15" y1="9" x2="9" y2="15"></line>
+                        <line x1="9" y1="9" x2="15" y2="15"></line>
+                    </svg>
+                    <p style="color: #ef4444; font-weight: 600;">${title}</p>
+                    <p style="font-size: 12px; margin-top: 8px;">${message}</p>
+                `;
+            }
+
+            function addPageToCanvas(pageId, pageName, positionData) {
+                const existingPage = document.getElementById(`page-${pageId}`);
+                if (existingPage) return;
+
+                const { x, y, width: displayWidth, height: displayHeight, srcWidth, srcHeight } = positionData;
+
+                pagePositions[pageId] = { x, y, width: displayWidth, height: displayHeight };
+
+                const pageDiv = document.createElement('div');
+                pageDiv.className = 'canvas-page-item';
+                pageDiv.id = `page-${pageId}`;
+                pageDiv.dataset.pageId = pageId;
+                pageDiv.style.width = `${displayWidth}px`;
+
+                const label = document.createElement('div');
+                label.className = 'canvas-page-label';
+                label.textContent = pageName;
+                pageDiv.appendChild(label);
+
+                const imageContainer = document.createElement('div');
+                imageContainer.className = 'canvas-page-image-container';
+                imageContainer.style.height = `${displayHeight}px`;
+
+                const iframeWrapper = document.createElement('div');
+                iframeWrapper.className = 'canvas-page-iframe-wrapper';
+
+                const iframe = document.createElement('iframe');
+                iframe.className = 'canvas-page-iframe';
+                iframe.src = `pages/${pageId}.html`;
+
+                const scale = displayWidth / srcWidth;
+
+                iframe.style.width = `${srcWidth}px`;
+                iframe.style.height = `${srcHeight}px`;
+                iframe.style.transform = `scale(${scale})`;
+
+                iframeWrapper.appendChild(iframe);
+                imageContainer.appendChild(iframeWrapper);
+                pageDiv.appendChild(imageContainer);
+
+                updatePagePosition(pageId, pageDiv);
+
+                pageDiv.addEventListener('mousedown', (e) => {
+                    if (e.button === 0) {
+                        e.stopPropagation();
+                        draggingPage = pageId;
+                        pageDragStart = {
+                            x: e.clientX,
+                            y: e.clientY,
+                            pageX: pagePositions[pageId].x,
+                            pageY: pagePositions[pageId].y
+                        };
+                        pageDiv.classList.add('dragging');
+                    }
+                });
+
+                pageDiv.addEventListener('mouseenter', () => {
+                    if (!draggingPage && !canvasState.isDragging) {
+                        showHoverMenu(pageId, pageDiv);
+                    }
+                });
+
+                pageDiv.addEventListener('mouseleave', (e) => {
+                    const relatedTarget = e.relatedTarget;
+                    if (!pageHoverMenu.contains(relatedTarget)) {
+                        setTimeout(() => {
+                            if (!pageHoverMenu.matches(':hover') && activeHoverPageId === pageId) {
+                                hideHoverMenu();
+                            }
+                        }, 100);
+                    }
+                });
+
+                canvasViewport.appendChild(pageDiv);
+                updateNavigationLines();
+            }
+
+            function updatePagePosition(pageId, pageEl = null) {
+                const el = pageEl || document.getElementById(`page-${pageId}`);
+                if (el && pagePositions[pageId]) {
+                    el.style.left = `${pagePositions[pageId].x}px`;
+                    el.style.top = `${pagePositions[pageId].y}px`;
+                }
+                updateNavigationLines();
+            }
+
+            function showHoverMenu(pageId, pageElement) {
+                activeHoverPageId = pageId;
+                const pageData = pagesData[pageId];
+
+                hoverMenuTitle.textContent = pageData ? pageData.page_name : pageId;
+                hoverOpenPage.href = `pages/${pageId}.html`;
+
+                quickModInput.style.display = 'none';
+                quickModTextarea.value = '';
+
+                hoverQuickMod.onclick = () => {
+                    quickModInput.style.display = 'block';
+                    quickModTextarea.focus();
+                };
+
+                quickModSubmit.onclick = () => {
+                    const instruction = quickModTextarea.value.trim();
+                    if (instruction) {
+                        const message = `For page \`${pageId}\`, make the following changes:\n\n${instruction}`;
+                        if (window.vscode && window.vscode.ipcRenderer) {
+                            window.vscode.ipcRenderer.send('vscode:send-to-chat', { message, sendImmediately: true });
+                        }
+                    }
+                    hideHoverMenu();
+                };
+
+                const rect = pageElement.getBoundingClientRect();
+                const menuWidth = 200;
+
+                let left = rect.left + (rect.width - menuWidth) / 2;
+                let top = rect.top - 10;
+
+                left = Math.max(10, Math.min(window.innerWidth - menuWidth - 10, left));
+
+                pageHoverMenu.style.left = `${left}px`;
+                pageHoverMenu.style.bottom = `${window.innerHeight - top}px`;
+                pageHoverMenu.style.top = 'auto';
+                pageHoverMenu.style.display = 'block';
+            }
+
+            function hideHoverMenu() {
+                pageHoverMenu.style.display = 'none';
+                activeHoverPageId = null;
+                quickModInput.style.display = 'none';
+                quickModTextarea.value = '';
+            }
+
+            pageHoverMenu.addEventListener('mouseleave', () => {
+                hideHoverMenu();
+            });
+        });
+    </script>
+</body>
+</html>

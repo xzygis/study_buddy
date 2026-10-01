@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StudyBuddy - 今日计划</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="h-screen overflow-hidden bg-[#f6f7f8] font-sans text-[#171b1a]">
+  <main class="mx-auto flex h-full max-w-md flex-col">
+    <header class="flex h-16 shrink-0 items-center justify-between px-5">
+      <h1 class="text-2xl font-bold">今日计划</h1>
+      <button class="flex h-10 w-10 items-center justify-center text-[#4e5754]" aria-label="使用说明">
+        <i class="fa-regular fa-circle-question text-xl"></i>
+      </button>
+    </header>
+
+    <section class="min-h-0 flex-1 overflow-y-auto px-4 pb-5">
+      <div class="mb-6 flex items-center gap-4 rounded-lg border border-[#e3e7e5] bg-white p-4">
+        <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[#fff3e5] text-[#e87920]">
+          <i class="fa-solid fa-sun text-2xl"></i>
+        </div>
+        <div>
+          <h2 class="text-xl font-bold">10月1日 星期四</h2>
+          <p class="mt-1 text-sm text-[#69716e]">今天有 6 项安排</p>
+        </div>
+      </div>
+
+      <div class="mb-3 flex items-center justify-between">
+        <h2 class="text-base font-bold">今日时间轴</h2>
+        <span class="text-xs text-[#69716e]">按本地时间</span>
+      </div>
+
+      <div class="flex items-center gap-3 pb-3">
+        <time class="w-12 text-right text-sm text-[#7c8381]">06:30</time>
+        <i class="fa-solid fa-sun text-[#ee8128]"></i>
+        <span class="text-sm font-semibold">一天开始</span>
+      </div>
+
+      <div class="space-y-2">
+        <article class="grid grid-cols-[48px_16px_1fr] gap-3">
+          <time class="pt-4 text-right font-semibold">16:20</time>
+          <div class="flex flex-col items-center"><span class="mt-5 h-2.5 w-2.5 rounded-full bg-[#9ba09e]"></span><span class="w-px flex-1 bg-[#d8dcda]"></span></div>
+          <div class="mb-1 flex min-h-20 items-center gap-3 rounded-lg border border-[#e3e7e5] bg-white p-4">
+            <i class="fa-solid fa-mug-hot w-6 text-center text-xl text-[#176b5a]"></i>
+            <div class="min-w-0 flex-1"><h3 class="font-bold">休息</h3><p class="text-xs text-[#737b78]">工作日（不含周二）</p></div>
+            <span class="rounded-full bg-[#f1f2f2] px-2 py-1 text-xs font-semibold text-[#777e7c]">未开始</span>
+          </div>
+        </article>
+        <article class="grid grid-cols-[48px_16px_1fr] gap-3">
+          <time class="pt-4 text-right font-semibold">16:50</time>
+          <div class="flex flex-col items-center"><span class="mt-5 h-2.5 w-2.5 rounded-full bg-[#9ba09e]"></span><span class="w-px flex-1 bg-[#d8dcda]"></span></div>
+          <div class="mb-1 flex min-h-20 items-center gap-3 rounded-lg border border-[#e3e7e5] bg-white p-4">
+            <i class="fa-solid fa-book w-6 text-center text-xl text-[#176b5a]"></i>
+            <div class="min-w-0 flex-1"><h3 class="font-bold">语文作业</h3><p class="text-xs text-[#737b78]">工作日（不含周二）</p></div>
+            <span class="rounded-full bg-[#f1f2f2] px-2 py-1 text-xs font-semibold text-[#777e7c]">未开始</span>
+          </div>
+        </article>
+        <article class="grid grid-cols-[48px_16px_1fr] gap-3">
+          <time class="pt-4 text-right font-semibold">17:30</time>
+          <div class="flex flex-col items-center"><span class="mt-5 h-2.5 w-2.5 rounded-full bg-[#9ba09e]"></span><span class="w-px flex-1 bg-[#d8dcda]"></span></div>
+          <div class="mb-1 flex min-h-20 items-center gap-3 rounded-lg border border-[#e3e7e5] bg-white p-4">
+            <i class="fa-solid fa-utensils w-6 text-center text-xl text-[#176b5a]"></i>
+            <div class="min-w-0 flex-1"><h3 class="font-bold">晚餐 + 休息</h3><p class="text-xs text-[#737b78]">工作日（不含周二）</p></div>
+            <span class="rounded-full bg-[#f1f2f2] px-2 py-1 text-xs font-semibold text-[#777e7c]">未开始</span>
+          </div>
+        </article>
+        <article class="grid grid-cols-[48px_16px_1fr] gap-3">
+          <time class="pt-4 text-right font-semibold">18:20</time>
+          <div class="flex flex-col items-center"><span class="mt-5 h-2.5 w-2.5 rounded-full bg-[#9ba09e]"></span></div>
+          <div class="flex min-h-20 items-center gap-3 rounded-lg border border-[#e3e7e5] bg-white p-4">
+            <i class="fa-solid fa-book w-6 text-center text-xl text-[#176b5a]"></i>
+            <div class="min-w-0 flex-1"><h3 class="font-bold">数学作业</h3><p class="text-xs text-[#737b78]">工作日（不含周二）</p></div>
+            <span class="rounded-full bg-[#f1f2f2] px-2 py-1 text-xs font-semibold text-[#777e7c]">未开始</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <nav class="grid h-20 shrink-0 grid-cols-2 border-t border-[#dfe3e1] bg-white px-7">
+      <a href="#" class="flex flex-col items-center justify-center gap-1 text-[#176b5a]"><i class="fa-solid fa-calendar-day text-xl"></i><span class="text-xs font-semibold">今天</span></a>
+      <a href="#" class="flex flex-col items-center justify-center gap-1 text-[#656d6a]"><i class="fa-solid fa-table-cells-large text-xl"></i><span class="text-xs font-semibold">计划</span></a>
+    </nav>
+  </main>
+</body>
+</html>
