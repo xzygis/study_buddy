@@ -1,0 +1,15 @@
+.DS_Store
+.build/
+.build-*/
+.sim-build/
+.sim-validation/
+.ui-tests/
+.xcode-cache/
+build/
+DerivedData/
+*.log
+*.xcresult/
+simulators.json
+Verification/
+**/xcuserdata/
+*.xcuserstate
