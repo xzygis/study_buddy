@@ -69,6 +69,7 @@ class AndroidAlarmScheduler(
             putExtra(EXTRA_TITLE, binding.title)
             putExtra(EXTRA_HOUR, binding.hour)
             putExtra(EXTRA_MINUTE, binding.minute)
+            putExtra(EXTRA_RINGTONE_URI, binding.ringtoneUri)
             putExtra(
                 EXTRA_WEEKDAYS,
                 binding.weekdays.map { it.name }.toTypedArray(),
@@ -115,5 +116,6 @@ class AndroidAlarmScheduler(
         const val EXTRA_HOUR = "hour"
         const val EXTRA_MINUTE = "minute"
         const val EXTRA_WEEKDAYS = "weekdays"
+        const val EXTRA_RINGTONE_URI = "ringtone_uri"
     }
 }

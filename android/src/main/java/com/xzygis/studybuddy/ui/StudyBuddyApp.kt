@@ -1,6 +1,12 @@
 package com.xzygis.studybuddy.ui
 
+import android.app.Activity
+import android.content.Intent
+import android.media.RingtoneManager
+import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -77,6 +83,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -735,6 +742,12 @@ private fun PlanEditorScreen(
                 }
             }
             item {
+                RingtoneSelector(
+                    ringtoneUri = draft.ringtoneUri,
+                    onSelected = { draft = draft.copy(ringtoneUri = it) },
+                )
+            }
+            item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("提醒事项", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
                     Spacer(Modifier.weight(1f))
@@ -791,6 +804,83 @@ private fun PlanEditorScreen(
         )
     }
 }
+
+@Composable
+private fun RingtoneSelector(
+    ringtoneUri: String?,
+    onSelected: (String?) -> Unit,
+) {
+    val context = LocalContext.current
+    val defaultUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+    val ringtoneTitle = remember(ringtoneUri) {
+        ringtoneUri
+            ?.let { runCatching { Uri.parse(it) }.getOrNull() }
+            ?.let { uri ->
+                runCatching {
+                    RingtoneManager.getRingtone(context, uri)?.getTitle(context)
+                }.getOrNull()
+            }
+            ?: "系统默认闹钟铃声"
+    }
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if (result.resultCode != Activity.RESULT_OK) return@rememberLauncherForActivityResult
+        val selected = result.data?.selectedRingtoneUri() ?: return@rememberLauncherForActivityResult
+        val grantFlags = result.data?.flags?.and(Intent.FLAG_GRANT_READ_URI_PERMISSION) ?: 0
+        if (grantFlags != 0) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(selected, grantFlags)
+            }
+        }
+        onSelected(if (selected == defaultUri) null else selected.toString())
+    }
+
+    Column {
+        Text("闹钟铃声", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(Icons.Default.Alarm, null, tint = StudyGreen)
+            Column(Modifier.weight(1f)) {
+                Text(ringtoneTitle, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    "计划内所有提醒使用此铃声",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (ringtoneUri != null) {
+                TextButton(onClick = { onSelected(null) }) {
+                    Text("默认")
+                }
+            }
+            OutlinedButton(
+                onClick = {
+                    launcher.launch(
+                        Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                            putExtra(
+                                RingtoneManager.EXTRA_RINGTONE_EXISTING_URI,
+                                ringtoneUri?.let(Uri::parse) ?: defaultUri,
+                            )
+                        },
+                    )
+                },
+            ) {
+                Text("选择")
+            }
+        }
+    }
+}
+
+@Suppress("DEPRECATION")
+private fun Intent.selectedRingtoneUri(): Uri? =
+    getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
 
 @Composable
 private fun ReminderEditor(

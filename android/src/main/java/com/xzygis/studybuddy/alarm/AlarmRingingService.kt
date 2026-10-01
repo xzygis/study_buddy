@@ -7,6 +7,7 @@ import android.content.pm.ServiceInfo
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -28,6 +29,7 @@ class AlarmRingingService : Service() {
         val action = intent?.action
         val bindingId = intent?.getStringExtra(AndroidAlarmScheduler.EXTRA_BINDING_ID)
         val title = intent?.getStringExtra(AndroidAlarmScheduler.EXTRA_TITLE) ?: "学习提醒"
+        val ringtoneUri = intent?.getStringExtra(AndroidAlarmScheduler.EXTRA_RINGTONE_URI)
         if (bindingId == null) {
             stopSelf()
             return START_NOT_STICKY
@@ -42,7 +44,7 @@ class AlarmRingingService : Service() {
         if (bindingId != currentBindingId) {
             currentBindingId = bindingId
             acquireWakeLock()
-            startAlarmSound()
+            startAlarmSound(ringtoneUri)
             startVibration()
         }
         return START_NOT_STICKY
@@ -85,13 +87,20 @@ class AlarmRingingService : Service() {
         wakeLock = null
     }
 
-    private fun startAlarmSound() {
+    private fun startAlarmSound(ringtoneUri: String?) {
         stopPlayer()
-        val sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            ?: return
-        player = runCatching {
-            MediaPlayer().apply {
+        val sounds = listOfNotNull(
+            ringtoneUri?.let { runCatching { Uri.parse(it) }.getOrNull() },
+            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
+            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
+        ).distinct()
+        player = sounds.firstNotNullOfOrNull(::createPlayer)
+    }
+
+    private fun createPlayer(sound: Uri): MediaPlayer? {
+        val candidate = MediaPlayer()
+        return runCatching {
+            candidate.apply {
                 setAudioAttributes(
                     AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_ALARM)
@@ -103,6 +112,8 @@ class AlarmRingingService : Service() {
                 prepare()
                 start()
             }
+        }.onFailure {
+            candidate.runCatching { release() }
         }.getOrNull()
     }
 
@@ -143,12 +154,19 @@ class AlarmRingingService : Service() {
         private const val ACTION_STOP = "com.xzygis.studybuddy.action.STOP_ALARM"
         private const val WAKE_LOCK_TIMEOUT_MILLIS = 10 * 60 * 1_000L
 
-        fun start(context: Context, planId: String, bindingId: String, title: String) {
+        fun start(
+            context: Context,
+            planId: String,
+            bindingId: String,
+            title: String,
+            ringtoneUri: String?,
+        ) {
             val intent = Intent(context, AlarmRingingService::class.java).apply {
                 action = ACTION_START
                 putExtra(AndroidAlarmScheduler.EXTRA_PLAN_ID, planId)
                 putExtra(AndroidAlarmScheduler.EXTRA_BINDING_ID, bindingId)
                 putExtra(AndroidAlarmScheduler.EXTRA_TITLE, title)
+                putExtra(AndroidAlarmScheduler.EXTRA_RINGTONE_URI, ringtoneUri)
             }
             ContextCompat.startForegroundService(context, intent)
         }

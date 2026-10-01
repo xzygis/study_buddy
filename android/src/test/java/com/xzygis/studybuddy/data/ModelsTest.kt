@@ -49,4 +49,16 @@ class ModelsTest {
             base.copy(weekdays = setOf(Weekday.SATURDAY, Weekday.SUNDAY)).repeatText,
         )
     }
+
+    @Test
+    fun ringtoneIsCopiedIntoPlanCopiesAndAlarmBindings() {
+        val ringtone = "content://media/internal/audio/media/42"
+        val plan = StarterPlans.all.first().copy(ringtoneUri = ringtone)
+
+        assertEquals(ringtone, plan.editableCopy().ringtoneUri)
+        assertEquals(
+            List(plan.reminders.size) { ringtone },
+            AlarmBinding.forPlan(plan).map { it.ringtoneUri },
+        )
+    }
 }
