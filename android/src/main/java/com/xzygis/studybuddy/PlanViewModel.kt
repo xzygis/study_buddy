@@ -3,6 +3,8 @@ package com.xzygis.studybuddy
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.xzygis.studybuddy.alarm.AlarmDiagnosticEntry
+import com.xzygis.studybuddy.alarm.AlarmDiagnosticStore
 import com.xzygis.studybuddy.alarm.AndroidAlarmScheduler
 import com.xzygis.studybuddy.data.AlarmBinding
 import com.xzygis.studybuddy.data.PlanDatabase
@@ -30,6 +32,7 @@ data class PlanUiState(
 class PlanViewModel(
     private val repository: PlanRepository,
     private val scheduler: AndroidAlarmScheduler,
+    private val diagnostics: AlarmDiagnosticStore,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(PlanUiState())
     val state: StateFlow<PlanUiState> = mutableState.asStateFlow()
@@ -62,8 +65,7 @@ class PlanViewModel(
             !record.pendingDeletion &&
             record.phase == SyncPhase.ON &&
             scheduler.canScheduleExactAlarms() &&
-            record.bindings.isNotEmpty() &&
-            record.bindings.all { scheduler.exists(it.id) }
+            record.bindings.isNotEmpty()
 
     fun statusText(record: PlanRecord): String = when {
         record.pendingDeletion -> "待清理后删除"
@@ -130,20 +132,35 @@ class PlanViewModel(
     fun reconcile() = launchOperation {
         val records = state.value.database.records.toList()
         records.forEach { original ->
-            val allPresent = original.bindings.isNotEmpty() &&
-                original.bindings.all { scheduler.exists(it.id) }
             when {
                 original.pendingDeletion -> {
                     cancelAll(original.bindings)
                     removeRecord(original.plan.id)
                 }
-                original.wantsEnabled &&
-                    original.phase == SyncPhase.ON &&
-                    scheduler.canScheduleExactAlarms() &&
-                    allPresent -> Unit
                 !original.wantsEnabled && original.bindings.isEmpty() -> {
                     if (original.phase != SyncPhase.OFF || original.issue != null) {
                         persistRecord(original.copy(phase = SyncPhase.OFF, issue = null))
+                    }
+                }
+                original.wantsEnabled && scheduler.canScheduleExactAlarms() -> {
+                    if (original.bindings.isEmpty()) {
+                        synchronize(original.plan.id)
+                    } else {
+                        try {
+                            original.bindings.forEach { scheduler.schedule(original.plan.id, it) }
+                            if (original.phase != SyncPhase.ON || original.issue != null) {
+                                persistRecord(original.copy(phase = SyncPhase.ON, issue = null))
+                            }
+                        } catch (error: Exception) {
+                            cancelAll(original.bindings)
+                            persistRecord(
+                                original.copy(
+                                    bindings = emptyList(),
+                                    phase = SyncPhase.ATTENTION,
+                                    issue = "系统闹钟重新提交失败，请重试。${error.message.orEmpty()}",
+                                ),
+                            )
+                        }
                     }
                 }
                 else -> {
@@ -171,6 +188,15 @@ class PlanViewModel(
 
     fun clearMessage() {
         mutableState.update { it.copy(message = null) }
+    }
+
+    fun diagnostics(planId: String): List<AlarmDiagnosticEntry> =
+        diagnostics.entriesForPlan(planId)
+
+    fun allDiagnostics(): List<AlarmDiagnosticEntry> = diagnostics.allEntries()
+
+    fun clearDiagnostics(planId: String) {
+        diagnostics.clearPlan(planId)
     }
 
     private suspend fun synchronize(planId: String) {
@@ -271,9 +297,10 @@ class PlanViewModel(
     class Factory(
         private val repository: PlanRepository,
         private val scheduler: AndroidAlarmScheduler,
+        private val diagnostics: AlarmDiagnosticStore,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            PlanViewModel(repository, scheduler) as T
+            PlanViewModel(repository, scheduler, diagnostics) as T
     }
 }

@@ -27,6 +27,7 @@ class MainActivity : ComponentActivity() {
         PlanViewModel.Factory(
             applicationContainer.repository,
             applicationContainer.alarmScheduler,
+            applicationContainer.alarmDiagnostics,
         )
     }
     private var pendingEnablePlanId: String? = null

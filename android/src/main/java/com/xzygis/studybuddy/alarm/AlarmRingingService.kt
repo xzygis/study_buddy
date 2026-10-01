@@ -16,12 +16,15 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import com.xzygis.studybuddy.StudyBuddyApplication
 
 class AlarmRingingService : Service() {
     private var player: MediaPlayer? = null
     private var vibrator: Vibrator? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var currentBindingId: String? = null
+    private val diagnostics: AlarmDiagnosticStore
+        get() = (application as StudyBuddyApplication).alarmDiagnostics
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -30,6 +33,8 @@ class AlarmRingingService : Service() {
         val bindingId = intent?.getStringExtra(AndroidAlarmScheduler.EXTRA_BINDING_ID)
         val title = intent?.getStringExtra(AndroidAlarmScheduler.EXTRA_TITLE) ?: "学习提醒"
         val ringtoneUri = intent?.getStringExtra(AndroidAlarmScheduler.EXTRA_RINGTONE_URI)
+        val occurrenceId = intent?.getStringExtra(AndroidAlarmScheduler.EXTRA_OCCURRENCE_ID)
+            ?: bindingId?.let { AlarmDiagnosticStore.occurrenceId(it, System.currentTimeMillis()) }
         if (bindingId == null) {
             stopSelf()
             return START_NOT_STICKY
@@ -40,11 +45,22 @@ class AlarmRingingService : Service() {
                 return START_NOT_STICKY
             }
         }
-        enterForeground(bindingId, title)
+        try {
+            enterForeground(bindingId, title)
+            occurrenceId?.let { diagnostics.recordService(it, System.currentTimeMillis()) }
+        } catch (error: Exception) {
+            occurrenceId?.let { diagnostics.recordError(it, "foreground", error) }
+            stopSelf()
+            return START_NOT_STICKY
+        }
         if (bindingId != currentBindingId) {
             currentBindingId = bindingId
             acquireWakeLock()
-            startAlarmSound(ringtoneUri)
+            if (startAlarmSound(ringtoneUri, occurrenceId)) {
+                occurrenceId?.let { diagnostics.recordAudio(it, System.currentTimeMillis()) }
+            } else {
+                occurrenceId?.let { diagnostics.recordError(it, "audio: no playable ringtone") }
+            }
             startVibration()
         }
         return START_NOT_STICKY
@@ -87,17 +103,18 @@ class AlarmRingingService : Service() {
         wakeLock = null
     }
 
-    private fun startAlarmSound(ringtoneUri: String?) {
+    private fun startAlarmSound(ringtoneUri: String?, occurrenceId: String?): Boolean {
         stopPlayer()
         val sounds = listOfNotNull(
             ringtoneUri?.let { runCatching { Uri.parse(it) }.getOrNull() },
             RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
             RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
         ).distinct()
-        player = sounds.firstNotNullOfOrNull(::createPlayer)
+        player = sounds.firstNotNullOfOrNull { createPlayer(it, occurrenceId) }
+        return player != null
     }
 
-    private fun createPlayer(sound: Uri): MediaPlayer? {
+    private fun createPlayer(sound: Uri, occurrenceId: String?): MediaPlayer? {
         val candidate = MediaPlayer()
         return runCatching {
             candidate.apply {
@@ -109,6 +126,15 @@ class AlarmRingingService : Service() {
                 )
                 setDataSource(this@AlarmRingingService, sound)
                 isLooping = true
+                setOnErrorListener { _, what, extra ->
+                    occurrenceId?.let {
+                        diagnostics.recordError(
+                            it,
+                            "audio_runtime: MediaPlayer what=$what extra=$extra",
+                        )
+                    }
+                    false
+                }
                 prepare()
                 start()
             }
@@ -160,6 +186,7 @@ class AlarmRingingService : Service() {
             bindingId: String,
             title: String,
             ringtoneUri: String?,
+            occurrenceId: String,
         ) {
             val intent = Intent(context, AlarmRingingService::class.java).apply {
                 action = ACTION_START
@@ -167,6 +194,7 @@ class AlarmRingingService : Service() {
                 putExtra(AndroidAlarmScheduler.EXTRA_BINDING_ID, bindingId)
                 putExtra(AndroidAlarmScheduler.EXTRA_TITLE, title)
                 putExtra(AndroidAlarmScheduler.EXTRA_RINGTONE_URI, ringtoneUri)
+                putExtra(AndroidAlarmScheduler.EXTRA_OCCURRENCE_ID, occurrenceId)
             }
             ContextCompat.startForegroundService(context, intent)
         }
