@@ -19,7 +19,13 @@ class AlarmReceiver : BroadcastReceiver() {
         val binding = decodeBinding(intent, bindingId, title)
 
         runCatching {
-            AlarmRingingService.start(context, planId, bindingId, title)
+            AlarmRingingService.start(
+                context = context,
+                planId = planId,
+                bindingId = bindingId,
+                title = title,
+                ringtoneUri = binding?.ringtoneUri,
+            )
         }
         if (binding != null) {
             val pendingResult = goAsync()
@@ -52,6 +58,7 @@ class AlarmReceiver : BroadcastReceiver() {
             hour = intent.getIntExtra(AndroidAlarmScheduler.EXTRA_HOUR, 9),
             minute = intent.getIntExtra(AndroidAlarmScheduler.EXTRA_MINUTE, 0),
             weekdays = weekdays,
+            ringtoneUri = intent.getStringExtra(AndroidAlarmScheduler.EXTRA_RINGTONE_URI),
         )
     }
 

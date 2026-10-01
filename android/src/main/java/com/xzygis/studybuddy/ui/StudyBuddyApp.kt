@@ -1,6 +1,12 @@
 package com.xzygis.studybuddy.ui
 
+import android.app.Activity
+import android.content.Intent
+import android.media.RingtoneManager
+import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -77,6 +83,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -265,22 +272,47 @@ private fun TodayScreen(
             DateSummary(today, entries.size)
         }
         if (!hasNotificationPermission) {
-            item { PermissionBanner("通知权限未开启，闹钟无法响铃", onOpenNotificationSettings) }
+            item {
+                PermissionBanner(
+                    text = "通知权限未开启，闹钟无法响铃",
+                    actionLabel = "通知设置",
+                    onClick = onOpenNotificationSettings,
+                )
+            }
         }
         if (!canScheduleExactAlarms) {
-            item { PermissionBanner("精确闹钟权限未开启，计划不会准时触发", onOpenExactAlarmSettings) }
+            item {
+                PermissionBanner(
+                    text = "精确闹钟权限未开启，计划不会准时触发",
+                    actionLabel = "闹钟设置",
+                    onClick = onOpenExactAlarmSettings,
+                )
+            }
         }
         if (!canUseFullScreenIntent) {
-            item { PermissionBanner("全屏提醒未开启，锁屏时只显示通知", onOpenFullScreenSettings) }
+            item {
+                PermissionBanner(
+                    text = "全屏提醒未开启，锁屏时只显示通知",
+                    actionLabel = "全屏设置",
+                    onClick = onOpenFullScreenSettings,
+                )
+            }
         }
         if (!isIgnoringBatteryOptimizations) {
-            item { PermissionBanner("电池优化可能导致闹钟延迟，建议设为不受限", onOpenBatterySettings) }
+            item {
+                PermissionBanner(
+                    text = "电池优化可能导致闹钟延迟，建议设为不受限",
+                    actionLabel = "电池设置",
+                    onClick = onOpenBatterySettings,
+                )
+            }
         }
         if (needsAutostartSetup) {
             item {
                 PermissionBanner(
-                    "请在系统管家中允许 StudyBuddy 自启动和后台运行",
-                    onOpenAutostartSettings,
+                    text = "请在系统管家中允许 StudyBuddy 自启动和后台运行",
+                    actionLabel = "自启动设置",
+                    onClick = onOpenAutostartSettings,
                 )
             }
         }
@@ -341,7 +373,11 @@ private fun DateSummary(date: LocalDate, count: Int) {
 }
 
 @Composable
-private fun PermissionBanner(text: String, onClick: () -> Unit) {
+private fun PermissionBanner(
+    text: String,
+    actionLabel: String,
+    onClick: () -> Unit,
+) {
     Surface(color = Color(0xFFFFF3E5), shape = RoundedCornerShape(8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
@@ -349,7 +385,7 @@ private fun PermissionBanner(text: String, onClick: () -> Unit) {
         ) {
             Icon(Icons.Outlined.NotificationsOff, null, tint = StudyOrange)
             Text(text, modifier = Modifier.padding(start = 10.dp).weight(1f), style = MaterialTheme.typography.bodySmall)
-            TextButton(onClick = onClick) { Text("设置") }
+            TextButton(onClick = onClick) { Text(actionLabel) }
         }
     }
 }
@@ -461,6 +497,7 @@ private fun PlanCard(
     onEnablePlan: (String) -> Unit,
     onEdit: (StudyPlan) -> Unit,
 ) {
+    var confirmDelete by remember(record.plan.id) { mutableStateOf(false) }
     Card(
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -513,6 +550,13 @@ private fun PlanCard(
                     Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(18.dp))
                     Text("复制", modifier = Modifier.padding(start = 7.dp))
                 }
+                TextButton(
+                    onClick = { confirmDelete = true },
+                    enabled = !isBusy && !record.pendingDeletion,
+                ) {
+                    Icon(Icons.Default.Delete, null, modifier = Modifier.size(18.dp))
+                    Text("删除", modifier = Modifier.padding(start = 7.dp))
+                }
                 if (record.phase == com.xzygis.studybuddy.data.SyncPhase.ATTENTION) {
                     TextButton(onClick = { viewModel.retry(record.plan.id) }, enabled = !isBusy) {
                         Text("重试")
@@ -520,6 +564,30 @@ private fun PlanCard(
                 }
             }
         }
+    }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("删除“${record.plan.name}”？") },
+            text = { Text("删除前会取消整组系统闹钟。此操作无法撤销。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmDelete = false
+                        viewModel.delete(record.plan.id)
+                    },
+                    enabled = !isBusy,
+                ) {
+                    Text("删除")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) {
+                    Text("取消")
+                }
+            },
+        )
     }
 }
 
@@ -674,6 +742,12 @@ private fun PlanEditorScreen(
                 }
             }
             item {
+                RingtoneSelector(
+                    ringtoneUri = draft.ringtoneUri,
+                    onSelected = { draft = draft.copy(ringtoneUri = it) },
+                )
+            }
+            item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("提醒事项", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
                     Spacer(Modifier.weight(1f))
@@ -730,6 +804,83 @@ private fun PlanEditorScreen(
         )
     }
 }
+
+@Composable
+private fun RingtoneSelector(
+    ringtoneUri: String?,
+    onSelected: (String?) -> Unit,
+) {
+    val context = LocalContext.current
+    val defaultUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+    val ringtoneTitle = remember(ringtoneUri) {
+        ringtoneUri
+            ?.let { runCatching { Uri.parse(it) }.getOrNull() }
+            ?.let { uri ->
+                runCatching {
+                    RingtoneManager.getRingtone(context, uri)?.getTitle(context)
+                }.getOrNull()
+            }
+            ?: "系统默认闹钟铃声"
+    }
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if (result.resultCode != Activity.RESULT_OK) return@rememberLauncherForActivityResult
+        val selected = result.data?.selectedRingtoneUri() ?: return@rememberLauncherForActivityResult
+        val grantFlags = result.data?.flags?.and(Intent.FLAG_GRANT_READ_URI_PERMISSION) ?: 0
+        if (grantFlags != 0) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(selected, grantFlags)
+            }
+        }
+        onSelected(if (selected == defaultUri) null else selected.toString())
+    }
+
+    Column {
+        Text("闹钟铃声", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(Icons.Default.Alarm, null, tint = StudyGreen)
+            Column(Modifier.weight(1f)) {
+                Text(ringtoneTitle, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    "计划内所有提醒使用此铃声",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (ringtoneUri != null) {
+                TextButton(onClick = { onSelected(null) }) {
+                    Text("默认")
+                }
+            }
+            OutlinedButton(
+                onClick = {
+                    launcher.launch(
+                        Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                            putExtra(
+                                RingtoneManager.EXTRA_RINGTONE_EXISTING_URI,
+                                ringtoneUri?.let(Uri::parse) ?: defaultUri,
+                            )
+                        },
+                    )
+                },
+            ) {
+                Text("选择")
+            }
+        }
+    }
+}
+
+@Suppress("DEPRECATION")
+private fun Intent.selectedRingtoneUri(): Uri? =
+    getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
 
 @Composable
 private fun ReminderEditor(

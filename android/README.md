@@ -7,13 +7,14 @@
 - 创建、编辑、复制和删除多组计划
 - 为整组计划选择每周重复日期
 - 每组包含多个具名提醒时间
+- 每个计划可选择系统提供的闹钟铃声
 - 今日时间轴仅展示已启用且适用于当天的提醒
 - 手机底部双标签导航，平板自动使用多栏布局
 - 数据仅保存在本机，无账号、网络或后台轮询
 
 ## 闹钟机制
 
-每个提醒使用 `AlarmManager.setAlarmClock` 提交下一次精确触发。到点后由 `AlarmReceiver` 立即启动前台 `AlarmRingingService`；Service 持有 WakeLock、循环播放系统闹钟铃声和震动，并通过全屏闹钟通知拉起 `AlarmActivity`。Receiver 同时提交下一周的同项提醒。
+每个提醒使用 `AlarmManager.setAlarmClock` 提交下一次精确触发。到点后由 `AlarmReceiver` 立即启动前台 `AlarmRingingService`；Service 持有 WakeLock、循环播放计划选择的铃声和震动，并通过全屏闹钟通知拉起 `AlarmActivity`。自定义铃声无法读取时会自动回退系统默认闹钟铃声。Receiver 同时提交下一周的同项提醒。
 
 应用还会在以下事件后重建全部已启用闹钟：
 

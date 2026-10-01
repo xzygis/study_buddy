@@ -38,6 +38,7 @@ data class StudyPlan(
     val name: String,
     val weekdays: Set<Weekday>,
     val reminders: List<StudyReminder>,
+    val ringtoneUri: String? = null,
 ) {
     val repeatText: String
         get() = when (weekdays) {
@@ -74,6 +75,7 @@ data class StudyPlan(
         name = copiedName,
         weekdays = weekdays,
         reminders = reminders.map { StudyReminder(name = it.name, hour = it.hour, minute = it.minute) },
+        ringtoneUri = ringtoneUri,
     )
 
     companion object {
@@ -93,6 +95,7 @@ data class AlarmBinding(
     val hour: Int,
     val minute: Int,
     val weekdays: Set<Weekday>,
+    val ringtoneUri: String? = null,
 ) {
     companion object {
         fun forPlan(plan: StudyPlan) = plan.sortedReminders.map {
@@ -102,6 +105,7 @@ data class AlarmBinding(
                 hour = it.hour,
                 minute = it.minute,
                 weekdays = plan.weekdays,
+                ringtoneUri = plan.ringtoneUri,
             )
         }
     }
