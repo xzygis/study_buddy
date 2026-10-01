@@ -218,7 +218,7 @@ bash ios/scripts/verify.sh
 
 ### IPA 发布
 
-`.github/workflows/release-ios.yml` 参考 SilentGuard 的发布方式：
+`.github/workflows/release-ios.yml` 提供自动版本管理、签名归档和 GitHub Release 发布：
 
 1. PR 合并到 `main` 后触发。
 2. 根据最新 Git Tag 自动递增补丁版本；首次发布为 `v1.0.0`。
