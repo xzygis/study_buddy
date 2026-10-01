@@ -17,6 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import com.xzygis.studybuddy.alarm.OemAutostartSettings
 import com.xzygis.studybuddy.ui.StudyBuddyApp
 import com.xzygis.studybuddy.ui.StudyBuddyTheme
 
@@ -45,6 +46,7 @@ class MainActivity : ComponentActivity() {
             PendingSettings.EXACT_ALARM -> applicationContainer.alarmScheduler.canScheduleExactAlarms()
             PendingSettings.FULL_SCREEN -> canUseFullScreenIntent()
             PendingSettings.BATTERY -> true
+            PendingSettings.AUTOSTART -> true
             null -> false
         }
         pendingSettings = null
@@ -62,6 +64,7 @@ class MainActivity : ComponentActivity() {
                     canScheduleExactAlarms = applicationContainer.alarmScheduler.canScheduleExactAlarms(),
                     canUseFullScreenIntent = canUseFullScreenIntent(),
                     isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations(),
+                    needsAutostartSetup = OemAutostartSettings.isRelevant(),
                     onEnablePlan = ::beginEnableFlow,
                     onOpenNotificationSettings = {
                         startActivity(
@@ -88,6 +91,7 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     onOpenBatterySettings = ::openBatterySettings,
+                    onOpenAutostartSettings = ::openAutostartSettings,
                 )
             }
         }
@@ -139,6 +143,15 @@ class MainActivity : ComponentActivity() {
                 return
             }.onFailure { pendingSettings = null }
         }
+        if (OemAutostartSettings.isRelevant() && !hasPromptedAutostart()) {
+            markAutostartPrompted()
+            pendingSettings = PendingSettings.AUTOSTART
+            val launched = runCatching {
+                settingsPermission.launch(OemAutostartSettings.bestIntent(this))
+            }.isSuccess
+            if (launched) return
+            pendingSettings = null
+        }
         pendingEnablePlanId = null
         plans.setEnabled(planId, true)
     }
@@ -170,5 +183,30 @@ class MainActivity : ComponentActivity() {
             .onFailure { startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
     }
 
-    private enum class PendingSettings { EXACT_ALARM, FULL_SCREEN, BATTERY }
+    private fun openAutostartSettings() {
+        runCatching { startActivity(OemAutostartSettings.bestIntent(this)) }
+            .onFailure {
+                startActivity(
+                    Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:$packageName"),
+                    ),
+                )
+            }
+    }
+
+    private fun hasPromptedAutostart(): Boolean =
+        getPreferences(MODE_PRIVATE).getBoolean(KEY_AUTOSTART_PROMPTED, false)
+
+    private fun markAutostartPrompted() {
+        getPreferences(MODE_PRIVATE).edit()
+            .putBoolean(KEY_AUTOSTART_PROMPTED, true)
+            .apply()
+    }
+
+    private enum class PendingSettings { EXACT_ALARM, FULL_SCREEN, BATTERY, AUTOSTART }
+
+    companion object {
+        private const val KEY_AUTOSTART_PROMPTED = "autostart_prompted"
+    }
 }

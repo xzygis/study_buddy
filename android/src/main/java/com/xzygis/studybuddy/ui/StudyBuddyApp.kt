@@ -102,11 +102,13 @@ fun StudyBuddyApp(
     canScheduleExactAlarms: Boolean,
     canUseFullScreenIntent: Boolean,
     isIgnoringBatteryOptimizations: Boolean,
+    needsAutostartSetup: Boolean,
     onEnablePlan: (String) -> Unit,
     onOpenNotificationSettings: () -> Unit,
     onOpenExactAlarmSettings: () -> Unit,
     onOpenFullScreenSettings: () -> Unit,
     onOpenBatterySettings: () -> Unit,
+    onOpenAutostartSettings: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var screen by remember { mutableStateOf(MainScreen.TODAY) }
@@ -144,11 +146,13 @@ fun StudyBuddyApp(
                 canScheduleExactAlarms = canScheduleExactAlarms,
                 canUseFullScreenIntent = canUseFullScreenIntent,
                 isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
+                needsAutostartSetup = needsAutostartSetup,
                 onEnablePlan = onEnablePlan,
                 onOpenNotificationSettings = onOpenNotificationSettings,
                 onOpenExactAlarmSettings = onOpenExactAlarmSettings,
                 onOpenFullScreenSettings = onOpenFullScreenSettings,
                 onOpenBatterySettings = onOpenBatterySettings,
+                onOpenAutostartSettings = onOpenAutostartSettings,
                 onEdit = { editingPlan = it },
                 snackbar = snackbar,
             )
@@ -193,10 +197,12 @@ fun StudyBuddyApp(
                         canScheduleExactAlarms = canScheduleExactAlarms,
                         canUseFullScreenIntent = canUseFullScreenIntent,
                         isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
+                        needsAutostartSetup = needsAutostartSetup,
                         onOpenNotificationSettings = onOpenNotificationSettings,
                         onOpenExactAlarmSettings = onOpenExactAlarmSettings,
                         onOpenFullScreenSettings = onOpenFullScreenSettings,
                         onOpenBatterySettings = onOpenBatterySettings,
+                        onOpenAutostartSettings = onOpenAutostartSettings,
                     )
                     MainScreen.PLANS -> PlansScreen(
                         modifier = Modifier.padding(padding),
@@ -221,10 +227,12 @@ private fun TodayScreen(
     canScheduleExactAlarms: Boolean,
     canUseFullScreenIntent: Boolean,
     isIgnoringBatteryOptimizations: Boolean,
+    needsAutostartSetup: Boolean,
     onOpenNotificationSettings: () -> Unit,
     onOpenExactAlarmSettings: () -> Unit,
     onOpenFullScreenSettings: () -> Unit,
     onOpenBatterySettings: () -> Unit,
+    onOpenAutostartSettings: () -> Unit,
 ) {
     val today = LocalDate.now()
     val weekday = Weekday.entries[today.dayOfWeek.value - 1]
@@ -267,6 +275,14 @@ private fun TodayScreen(
         }
         if (!isIgnoringBatteryOptimizations) {
             item { PermissionBanner("电池优化可能导致闹钟延迟，建议设为不受限", onOpenBatterySettings) }
+        }
+        if (needsAutostartSetup) {
+            item {
+                PermissionBanner(
+                    "请在系统管家中允许 StudyBuddy 自启动和后台运行",
+                    onOpenAutostartSettings,
+                )
+            }
         }
         item {
             Text(
@@ -516,11 +532,13 @@ private fun TabletLayout(
     canScheduleExactAlarms: Boolean,
     canUseFullScreenIntent: Boolean,
     isIgnoringBatteryOptimizations: Boolean,
+    needsAutostartSetup: Boolean,
     onEnablePlan: (String) -> Unit,
     onOpenNotificationSettings: () -> Unit,
     onOpenExactAlarmSettings: () -> Unit,
     onOpenFullScreenSettings: () -> Unit,
     onOpenBatterySettings: () -> Unit,
+    onOpenAutostartSettings: () -> Unit,
     onEdit: (StudyPlan) -> Unit,
     snackbar: SnackbarHostState,
 ) {
@@ -557,10 +575,12 @@ private fun TabletLayout(
                 canScheduleExactAlarms = canScheduleExactAlarms,
                 canUseFullScreenIntent = canUseFullScreenIntent,
                 isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
+                needsAutostartSetup = needsAutostartSetup,
                 onOpenNotificationSettings = onOpenNotificationSettings,
                 onOpenExactAlarmSettings = onOpenExactAlarmSettings,
                 onOpenFullScreenSettings = onOpenFullScreenSettings,
                 onOpenBatterySettings = onOpenBatterySettings,
+                onOpenAutostartSettings = onOpenAutostartSettings,
             )
         }
     }

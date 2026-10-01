@@ -13,7 +13,7 @@
 
 ## 闹钟机制
 
-每个提醒使用 `AlarmManager.setAlarmClock` 提交下一次精确触发，`PendingIntent` 直接指向 `AlarmActivity`，不走广播中转，规避 Android 12+ 后台启动限制。锁屏时 Activity 全屏弹出、唤醒屏幕、循环播放系统闹钟铃声和震动，用户按停止后 App 立即计算并提交下一周的同项提醒。
+每个提醒使用 `AlarmManager.setAlarmClock` 提交下一次精确触发。到点后由 `AlarmReceiver` 立即启动前台 `AlarmRingingService`；Service 持有 WakeLock、循环播放系统闹钟铃声和震动，并通过全屏闹钟通知拉起 `AlarmActivity`。Receiver 同时提交下一周的同项提醒。
 
 应用还会在以下事件后重建全部已启用闹钟：
 
@@ -27,8 +27,11 @@
 - 精确闹钟权限
 - 全屏提醒权限
 - 电池优化不受限
+- 厂商系统管家的自启动和后台运行权限
 
-部分厂商（Xiaomi、OPPO 等）会额外限制后台自启动与保活，首次安装后建议在真机做一次锁屏试响，并在系统设置里允许 StudyBuddy 自启动。
+对于 Xiaomi/Redmi/POCO、Huawei/Honor、OPPO/Realme/OnePlus、vivo/iQOO 等设备，首次启用计划时 App 会尝试打开厂商自启动管理页；“今天”页也会保留检查入口。Android 无法读取这些私有开关的实际状态，因此仍需用户手动确认。
+
+系统设置中的“强行停止”会按 Android 安全模型清空应用闹钟，任何第三方 App 都无法绕过；重新打开 StudyBuddy 后会重新核对并安装闹钟。
 
 ## 本地构建
 
