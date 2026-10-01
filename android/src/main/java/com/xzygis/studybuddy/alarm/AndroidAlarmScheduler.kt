@@ -34,15 +34,9 @@ class AndroidAlarmScheduler(
     fun schedule(planId: String, binding: AlarmBinding) {
         check(canScheduleExactAlarms()) { "系统尚未允许精确闹钟，请先授权。" }
         val triggerAt = nextTrigger(binding).toInstant().toEpochMilli()
-        val pending = alarmPendingIntent(
-            planId = planId,
-            binding = binding,
-            triggerAt = triggerAt,
-            flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
         alarmManager.setAlarmClock(
-            AlarmManager.AlarmClockInfo(triggerAt, pending),
-            pending,
+            AlarmManager.AlarmClockInfo(triggerAt, showAppPendingIntent()),
+            alarmPendingIntent(planId, binding, PendingIntent.FLAG_UPDATE_CURRENT),
         )
     }
 
@@ -64,21 +58,62 @@ class AndroidAlarmScheduler(
     private fun alarmPendingIntent(
         planId: String,
         binding: AlarmBinding,
-        triggerAt: Long,
         flags: Int,
-    ): PendingIntent = PendingIntent.getActivity(
+    ): PendingIntent {
+        val intent = Intent(context, AlarmReceiver::class.java).apply {
+            action = AlarmReceiver.ACTION_FIRE
+            data = alarmUri(binding.id)
+            putExtra(EXTRA_PLAN_ID, planId)
+            putExtra(EXTRA_BINDING_ID, binding.id)
+            putExtra(EXTRA_REMINDER_ID, binding.reminderId)
+            putExtra(EXTRA_TITLE, binding.title)
+            putExtra(EXTRA_HOUR, binding.hour)
+            putExtra(EXTRA_MINUTE, binding.minute)
+            putExtra(
+                EXTRA_WEEKDAYS,
+                binding.weekdays.map { it.name }.toTypedArray(),
+            )
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            requestCode(binding.id),
+            intent,
+            flags or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    private fun cancelPendingIntent(bindingId: String): PendingIntent? {
+        val intent = Intent(context, AlarmReceiver::class.java).apply {
+            action = AlarmReceiver.ACTION_FIRE
+            data = alarmUri(bindingId)
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            requestCode(bindingId),
+            intent,
+            PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    private fun showAppPendingIntent(): PendingIntent = PendingIntent.getActivity(
         context,
-        requestCode(binding.id),
-        AlarmActivity.alarmIntent(context, planId, binding, triggerAt),
-        flags,
+        0,
+        Intent(context, com.xzygis.studybuddy.MainActivity::class.java),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
 
-    private fun cancelPendingIntent(bindingId: String): PendingIntent? = PendingIntent.getActivity(
-        context,
-        requestCode(bindingId),
-        AlarmActivity.cancelProbeIntent(context, bindingId),
-        PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
-    )
+    private fun alarmUri(bindingId: String): Uri =
+        Uri.parse("studybuddy://${context.packageName}/alarm/$bindingId")
 
     private fun requestCode(bindingId: String) = bindingId.hashCode()
+
+    companion object {
+        const val EXTRA_PLAN_ID = "plan_id"
+        const val EXTRA_BINDING_ID = "binding_id"
+        const val EXTRA_REMINDER_ID = "reminder_id"
+        const val EXTRA_TITLE = "title"
+        const val EXTRA_HOUR = "hour"
+        const val EXTRA_MINUTE = "minute"
+        const val EXTRA_WEEKDAYS = "weekdays"
+    }
 }
