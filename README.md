@@ -35,8 +35,8 @@ StudyBuddy 是一款面向家庭学习安排的原生 iOS、iPadOS 和 Android �
 - 灵活创建多组学习计划，并可随时编辑、复制或删除
 - 为每组计划统一设置每周重复日期
 - 在单个计划中添加多个提醒，自定义名称和开始时间
-- 一键启用或停用整组提醒，并通过 AlarmKit / AlarmManager 交给系统调度
-- 创建过程中如有提醒失败，自动回滚整组操作，避免重复或残留闹钟
+- 一键将 Android 整组提醒写入系统时钟，应用退出后仍由系统可靠响铃
+- iOS / iPadOS 通过 AlarmKit 管理提醒
 - 原生适配 iPhone、iPad、Android 手机和平板
 
 ## 界面预览
@@ -63,7 +63,7 @@ StudyBuddy 是一款面向家庭学习安排的原生 iOS、iPadOS 和 Android �
 | 平台 | 技术 |
 | --- | --- |
 | iOS / iPadOS | Swift 6、SwiftUI、AlarmKit、iOS 26+、本地 JSON |
-| Android | Kotlin 2、Jetpack Compose、AlarmManager、Android 8.0+、DataStore |
+| Android | Kotlin 2、Jetpack Compose、AlarmClock Intent、Android 8.0+、DataStore |
 | 验证 | XCTest、XCUITest、JUnit、Android Lint |
 
 ## 快速开始
@@ -100,6 +100,8 @@ bash ios/scripts/verify.sh
 > Ad Hoc IPA 只能安装到描述文件中已登记的设备。AlarmKit 的实际响铃行为仍需在真机上验证。
 >
 > Android 首个自动版本为 `android-v1.0.0`，后续每次合并自动递增补丁版本；签名密钥必须长期保留。
+>
+> Android 的公开 API 不允许第三方精确删除系统时钟中的重复闹钟。修改、停用或删除计划后，请在系统时钟中手动清理带 `StudyBuddy` 标签的旧闹钟。
 
 ## 文档
 

@@ -1,6 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">StudyBuddy</string>
-    <string name="alarm_channel_name">学习闹钟</string>
-    <string name="alarm_channel_description">按计划响铃的学习提醒</string>
 </resources>

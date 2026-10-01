@@ -1,5 +1,6 @@
 package com.xzygis.studybuddy.data
 
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
@@ -48,5 +49,31 @@ class ModelsTest {
             "周六、周日",
             base.copy(weekdays = setOf(Weekday.SATURDAY, Weekday.SUNDAY)).repeatText,
         )
+    }
+
+    @Test
+    fun planRecordDefaultsToNotInstalledInSystemClock() {
+        assertEquals(false, PlanRecord(plan = StudyPlan.draft()).installedInSystemClock)
+    }
+
+    @Test
+    fun oldStoredRecordMigratesAsLegacyAlarm() {
+        val database = Json { ignoreUnknownKeys = true }.decodeFromString<PlanDatabase>(
+            """
+            {
+              "records": [{
+                "plan": {
+                  "name": "旧计划",
+                  "weekdays": ["MONDAY"],
+                  "reminders": [{"name": "学习", "hour": 9, "minute": 0}]
+                },
+                "wantsEnabled": true,
+                "phase": "ON"
+              }]
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals(false, database.records.single().installedInSystemClock)
     }
 }

@@ -37,11 +37,9 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SportsBasketball
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.outlined.Alarm
-import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -99,13 +97,8 @@ private enum class MainScreen { TODAY, PLANS }
 @Composable
 fun StudyBuddyApp(
     viewModel: PlanViewModel,
-    hasNotificationPermission: Boolean,
-    canScheduleExactAlarms: Boolean,
-    canUseFullScreenIntent: Boolean,
     onEnablePlan: (String) -> Unit,
-    onOpenNotificationSettings: () -> Unit,
-    onOpenExactAlarmSettings: () -> Unit,
-    onOpenFullScreenSettings: () -> Unit,
+    onOpenSystemClock: () -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var screen by remember { mutableStateOf(MainScreen.TODAY) }
@@ -125,9 +118,23 @@ fun StudyBuddyApp(
             isExisting = state.database.records.any { it.plan.id == plan.id },
             isBusy = state.isBusy,
             onBack = { editingPlan = null },
-            onSave = { viewModel.save(it) { editingPlan = null } },
+            onSave = { updated ->
+                val needsSystemCleanup = state.database.records
+                    .firstOrNull { it.plan.id == updated.id }
+                    ?.installedInSystemClock == true
+                viewModel.save(updated) {
+                    editingPlan = null
+                    if (needsSystemCleanup) onOpenSystemClock()
+                }
+            },
             onDelete = {
-                viewModel.delete(plan.id) { editingPlan = null }
+                val needsSystemCleanup = state.database.records
+                    .firstOrNull { it.plan.id == plan.id }
+                    ?.installedInSystemClock == true
+                viewModel.delete(plan.id) {
+                    editingPlan = null
+                    if (needsSystemCleanup) onOpenSystemClock()
+                }
             },
         )
         return
@@ -139,13 +146,8 @@ fun StudyBuddyApp(
                 viewModel = viewModel,
                 records = state.database.records,
                 isBusy = state.isBusy,
-                hasNotificationPermission = hasNotificationPermission,
-                canScheduleExactAlarms = canScheduleExactAlarms,
-                canUseFullScreenIntent = canUseFullScreenIntent,
                 onEnablePlan = onEnablePlan,
-                onOpenNotificationSettings = onOpenNotificationSettings,
-                onOpenExactAlarmSettings = onOpenExactAlarmSettings,
-                onOpenFullScreenSettings = onOpenFullScreenSettings,
+                onOpenSystemClock = onOpenSystemClock,
                 onEdit = { editingPlan = it },
                 snackbar = snackbar,
             )
@@ -186,12 +188,7 @@ fun StudyBuddyApp(
                         modifier = Modifier.padding(padding),
                         viewModel = viewModel,
                         records = state.database.records,
-                        hasNotificationPermission = hasNotificationPermission,
-                        canScheduleExactAlarms = canScheduleExactAlarms,
-                        canUseFullScreenIntent = canUseFullScreenIntent,
-                        onOpenNotificationSettings = onOpenNotificationSettings,
-                        onOpenExactAlarmSettings = onOpenExactAlarmSettings,
-                        onOpenFullScreenSettings = onOpenFullScreenSettings,
+                        onOpenSystemClock = onOpenSystemClock,
                     )
                     MainScreen.PLANS -> PlansScreen(
                         modifier = Modifier.padding(padding),
@@ -199,6 +196,7 @@ fun StudyBuddyApp(
                         records = state.database.records,
                         isBusy = state.isBusy,
                         onEnablePlan = onEnablePlan,
+                        onOpenSystemClock = onOpenSystemClock,
                         onEdit = { editingPlan = it },
                     )
                 }
@@ -212,12 +210,7 @@ private fun TodayScreen(
     modifier: Modifier,
     viewModel: PlanViewModel,
     records: List<PlanRecord>,
-    hasNotificationPermission: Boolean,
-    canScheduleExactAlarms: Boolean,
-    canUseFullScreenIntent: Boolean,
-    onOpenNotificationSettings: () -> Unit,
-    onOpenExactAlarmSettings: () -> Unit,
-    onOpenFullScreenSettings: () -> Unit,
+    onOpenSystemClock: () -> Unit,
 ) {
     val today = LocalDate.now()
     val weekday = Weekday.entries[today.dayOfWeek.value - 1]
@@ -249,12 +242,8 @@ private fun TodayScreen(
         item {
             DateSummary(today, entries.size)
         }
-        if (!hasNotificationPermission) {
-            item { PermissionBanner("通知权限未开启，闹钟无法响铃", onOpenNotificationSettings) }
-        } else if (!canScheduleExactAlarms) {
-            item { PermissionBanner("精确闹钟权限未开启，计划不会准时触发", onOpenExactAlarmSettings) }
-        } else if (!canUseFullScreenIntent) {
-            item { PermissionBanner("全屏提醒未开启，锁屏时只显示通知", onOpenFullScreenSettings) }
+        item {
+            SystemClockBanner(onOpenSystemClock)
         }
         item {
             Text(
@@ -313,15 +302,19 @@ private fun DateSummary(date: LocalDate, count: Int) {
 }
 
 @Composable
-private fun PermissionBanner(text: String, onClick: () -> Unit) {
+private fun SystemClockBanner(onClick: () -> Unit) {
     Surface(color = Color(0xFFFFF3E5), shape = RoundedCornerShape(8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Outlined.NotificationsOff, null, tint = StudyOrange)
-            Text(text, modifier = Modifier.padding(start = 10.dp).weight(1f), style = MaterialTheme.typography.bodySmall)
-            TextButton(onClick = onClick) { Text("设置") }
+            Icon(Icons.Default.Alarm, null, tint = StudyOrange)
+            Text(
+                "提醒由系统时钟管理",
+                modifier = Modifier.padding(start = 10.dp).weight(1f),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            TextButton(onClick = onClick) { Text("打开") }
         }
     }
 }
@@ -397,6 +390,7 @@ private fun PlansScreen(
     records: List<PlanRecord>,
     isBusy: Boolean,
     onEnablePlan: (String) -> Unit,
+    onOpenSystemClock: () -> Unit,
     onEdit: (StudyPlan) -> Unit,
 ) {
     LazyColumn(
@@ -412,11 +406,11 @@ private fun PlansScreen(
             }
         }
         items(records, key = { it.plan.id }) { record ->
-            PlanCard(viewModel, record, isBusy, onEnablePlan, onEdit)
+            PlanCard(viewModel, record, isBusy, onEnablePlan, onOpenSystemClock, onEdit)
         }
         item {
             Text(
-                "启用成功后由 Android 系统管理闹钟，无需保持 App 打开。",
+                "修改、停用或删除计划后，请在系统时钟中清理旧闹钟。",
                 modifier = Modifier.padding(8.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -431,6 +425,7 @@ private fun PlanCard(
     record: PlanRecord,
     isBusy: Boolean,
     onEnablePlan: (String) -> Unit,
+    onOpenSystemClock: () -> Unit,
     onEdit: (StudyPlan) -> Unit,
 ) {
     Card(
@@ -463,7 +458,12 @@ private fun PlanCard(
                 Switch(
                     checked = viewModel.isEnabled(record),
                     onCheckedChange = { enabled ->
-                        if (enabled) onEnablePlan(record.plan.id) else viewModel.setEnabled(record.plan.id, false)
+                        if (enabled) {
+                            onEnablePlan(record.plan.id)
+                        } else {
+                            viewModel.setEnabled(record.plan.id, false)
+                            onOpenSystemClock()
+                        }
                     },
                     enabled = !isBusy && !record.pendingDeletion,
                 )
@@ -500,13 +500,8 @@ private fun TabletLayout(
     viewModel: PlanViewModel,
     records: List<PlanRecord>,
     isBusy: Boolean,
-    hasNotificationPermission: Boolean,
-    canScheduleExactAlarms: Boolean,
-    canUseFullScreenIntent: Boolean,
     onEnablePlan: (String) -> Unit,
-    onOpenNotificationSettings: () -> Unit,
-    onOpenExactAlarmSettings: () -> Unit,
-    onOpenFullScreenSettings: () -> Unit,
+    onOpenSystemClock: () -> Unit,
     onEdit: (StudyPlan) -> Unit,
     snackbar: SnackbarHostState,
 ) {
@@ -532,6 +527,7 @@ private fun TabletLayout(
                     records = records,
                     isBusy = isBusy,
                     onEnablePlan = onEnablePlan,
+                    onOpenSystemClock = onOpenSystemClock,
                     onEdit = onEdit,
                 )
             }
@@ -539,12 +535,7 @@ private fun TabletLayout(
                 modifier = Modifier.weight(1f),
                 viewModel = viewModel,
                 records = records,
-                hasNotificationPermission = hasNotificationPermission,
-                canScheduleExactAlarms = canScheduleExactAlarms,
-                canUseFullScreenIntent = canUseFullScreenIntent,
-                onOpenNotificationSettings = onOpenNotificationSettings,
-                onOpenExactAlarmSettings = onOpenExactAlarmSettings,
-                onOpenFullScreenSettings = onOpenFullScreenSettings,
+                onOpenSystemClock = onOpenSystemClock,
             )
         }
     }
