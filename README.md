@@ -12,6 +12,9 @@
   <a href="https://github.com/xzygis/study_buddy/actions/workflows/ci.yml">
     <img src="https://github.com/xzygis/study_buddy/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" />
   </a>
+  <a href="https://github.com/xzygis/study_buddy/actions/workflows/release-android.yml">
+    <img src="https://github.com/xzygis/study_buddy/actions/workflows/release-android.yml/badge.svg" alt="Android Release" />
+  </a>
   <a href="https://github.com/xzygis/study_buddy/releases/latest">
     <img src="https://img.shields.io/github/v/release/xzygis/study_buddy?label=latest" alt="Latest Release" />
   </a>
@@ -78,12 +81,14 @@ bash ios/scripts/verify.sh
 
 ## 下载安装
 
-签名 Secrets 配置完成后，可从 [Releases](https://github.com/xzygis/study_buddy/releases/latest) 下载安装包：
+签名 Secrets 配置完成后，功能分支的 Pull Request 合并到 `main` 会自动运行测试、生成递增版本号并发布安装包。可从 [Releases](https://github.com/xzygis/study_buddy/releases/latest) 下载：
 
 - iOS / iPadOS：需要 Apple 开发者签名的 IPA
 - Android：使用免费的自有 keystore 签名，可长期安装和覆盖升级的 APK
 
 > Ad Hoc IPA 只能安装到描述文件中已登记的设备。AlarmKit 的实际响铃行为仍需在真机上验证。
+>
+> Android 首个自动版本为 `android-v1.0.0`，后续每次合并自动递增补丁版本；签名密钥必须长期保留。
 
 ## 文档
 

@@ -81,4 +81,10 @@ GitHub Actions 发布需配置以下仓库 Secrets：
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
 
-随后手动运行 `Build & Release Android APK`，或推送 `android-v1.0.0` 格式的标签。不要丢失 keystore 和密码，它们是后续升级安装的唯一签名身份。
+配置完成后，以下任一事件都会生成签名 APK 并发布到 GitHub Releases：
+
+- Pull Request 合并到 `main`
+- 手动运行 `Build & Release Android APK`
+- 推送 `android-v1.0.0` 格式的标签
+
+首次自动发布使用 `android-v1.0.0`，之后按已有 Android 标签递增补丁版本。不要丢失 keystore 和密码，它们是后续覆盖升级的唯一签名身份。
