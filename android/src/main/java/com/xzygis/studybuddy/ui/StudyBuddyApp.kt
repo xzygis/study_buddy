@@ -932,6 +932,7 @@ private fun AlarmLogEntryCard(entry: AlarmDiagnosticEntry, now: Long) {
             DiagnosticTimeRow("receiverAt", entry.receiverAt)
             DiagnosticTimeRow("serviceAt", entry.serviceAt)
             DiagnosticTimeRow("audioAt", entry.audioAt)
+            DiagnosticTimeRow("screenAt", entry.screenAt)
             entry.cancelledAt?.let { DiagnosticTimeRow("cancelledAt", it) }
             entry.error?.let {
                 Text(

@@ -39,6 +39,8 @@ class AlarmRingingService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        val resolvedOccurrenceId = occurrenceId
+            ?: AlarmDiagnosticStore.occurrenceId(bindingId, System.currentTimeMillis())
         if (action == ACTION_STOP || bindingId == currentBindingId && player != null) {
             if (action == ACTION_STOP) {
                 stopSelf()
@@ -46,20 +48,21 @@ class AlarmRingingService : Service() {
             }
         }
         try {
-            enterForeground(bindingId, title)
-            occurrenceId?.let { diagnostics.recordService(it, System.currentTimeMillis()) }
+            enterForeground(bindingId, title, resolvedOccurrenceId)
+            diagnostics.recordService(resolvedOccurrenceId, System.currentTimeMillis())
         } catch (error: Exception) {
-            occurrenceId?.let { diagnostics.recordError(it, "foreground", error) }
+            diagnostics.recordError(resolvedOccurrenceId, "foreground", error)
             stopSelf()
             return START_NOT_STICKY
         }
         if (bindingId != currentBindingId) {
             currentBindingId = bindingId
             acquireWakeLock()
-            if (startAlarmSound(ringtoneUri, occurrenceId)) {
-                occurrenceId?.let { diagnostics.recordAudio(it, System.currentTimeMillis()) }
+            launchAlarmScreen(bindingId, title, resolvedOccurrenceId)
+            if (startAlarmSound(ringtoneUri, resolvedOccurrenceId)) {
+                diagnostics.recordAudio(resolvedOccurrenceId, System.currentTimeMillis())
             } else {
-                occurrenceId?.let { diagnostics.recordError(it, "audio: no playable ringtone") }
+                diagnostics.recordError(resolvedOccurrenceId, "audio: no playable ringtone")
             }
             startVibration()
         }
@@ -76,9 +79,9 @@ class AlarmRingingService : Service() {
         super.onDestroy()
     }
 
-    private fun enterForeground(bindingId: String, title: String) {
+    private fun enterForeground(bindingId: String, title: String, occurrenceId: String) {
         val notificationId = AlarmNotifier.notificationId(bindingId)
-        val notification = AlarmNotifier.buildNotification(this, bindingId, title)
+        val notification = AlarmNotifier.buildNotification(this, bindingId, title, occurrenceId)
         ServiceCompat.startForeground(
             this,
             notificationId,
@@ -89,6 +92,20 @@ class AlarmRingingService : Service() {
                 0
             },
         )
+    }
+
+    private fun launchAlarmScreen(bindingId: String, title: String, occurrenceId: String) {
+        runCatching {
+            startActivity(
+                AlarmActivity.intent(
+                    context = this,
+                    bindingId = bindingId,
+                    title = title,
+                    notificationId = AlarmNotifier.notificationId(bindingId),
+                    occurrenceId = occurrenceId,
+                ),
+            )
+        }
     }
 
     private fun acquireWakeLock() {

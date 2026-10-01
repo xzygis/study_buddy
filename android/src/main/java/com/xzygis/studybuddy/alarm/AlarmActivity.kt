@@ -1,6 +1,5 @@
 package com.xzygis.studybuddy.alarm
 
-import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -29,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xzygis.studybuddy.StudyBuddyApplication
 import com.xzygis.studybuddy.ui.StudyBuddyTheme
 import com.xzygis.studybuddy.ui.StudyGreen
 import java.lang.ref.WeakReference
@@ -47,6 +47,15 @@ class AlarmActivity : ComponentActivity() {
         render()
     }
 
+    override fun onResume() {
+        super.onResume()
+        intent.getStringExtra(AndroidAlarmScheduler.EXTRA_OCCURRENCE_ID)?.let {
+            (application as StudyBuddyApplication)
+                .alarmDiagnostics
+                .recordScreen(it, System.currentTimeMillis())
+        }
+    }
+
     override fun onDestroy() {
         if (current?.get() === this) current = null
         super.onDestroy()
@@ -56,16 +65,17 @@ class AlarmActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
-            getSystemService(KeyguardManager::class.java)?.requestDismissKeyguard(this, null)
         } else {
             @Suppress("DEPRECATION")
             window.addFlags(
                 WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
-                    WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD,
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON,
             )
         }
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        window.addFlags(
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+                WindowManager.LayoutParams.FLAG_ALLOW_LOCK_WHILE_SCREEN_ON,
+        )
     }
 
     private fun render() {
@@ -85,10 +95,17 @@ class AlarmActivity : ComponentActivity() {
     companion object {
         private var current: WeakReference<AlarmActivity>? = null
 
-        fun intent(context: Context, bindingId: String, title: String, notificationId: Int) =
+        fun intent(
+            context: Context,
+            bindingId: String,
+            title: String,
+            notificationId: Int,
+            occurrenceId: String,
+        ) =
             Intent(context, AlarmActivity::class.java).apply {
                 putExtra(AndroidAlarmScheduler.EXTRA_BINDING_ID, bindingId)
                 putExtra(AndroidAlarmScheduler.EXTRA_TITLE, title)
+                putExtra(AndroidAlarmScheduler.EXTRA_OCCURRENCE_ID, occurrenceId)
                 putExtra(AlarmNotifier.EXTRA_NOTIFICATION_ID, notificationId)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }

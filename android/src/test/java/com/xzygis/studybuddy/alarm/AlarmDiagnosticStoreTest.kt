@@ -63,7 +63,12 @@ class AlarmDiagnosticStoreTest {
 
     @Test
     fun reschedulingSameOccurrencePreservesDeliveryEvidence() {
-        val delivered = scheduled.copy(receiverAt = 2_010, serviceAt = 2_020, audioAt = 2_030)
+        val delivered = scheduled.copy(
+            receiverAt = 2_010,
+            serviceAt = 2_020,
+            audioAt = 2_030,
+            screenAt = 2_040,
+        )
         val rescheduled = scheduled.copy(scheduledAt = 1_500)
 
         val result = upsertDiagnostic(listOf(delivered), rescheduled).single()
@@ -72,6 +77,7 @@ class AlarmDiagnosticStoreTest {
         assertEquals(2_010L, result.receiverAt)
         assertEquals(2_020L, result.serviceAt)
         assertEquals(2_030L, result.audioAt)
+        assertEquals(2_040L, result.screenAt)
     }
 
     @Test

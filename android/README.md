@@ -36,7 +36,9 @@
 
 “今天”页的后台运行设置会始终保留电池优化入口，并在支持的厂商设备上同时提供自启动入口。电池优化状态可由系统 API 检测；自启动属于厂商私有能力，只能提示用户自行确认。
 
-每次闹钟调度都会生成独立触发实例，并依次记录 `scheduledAt`、`triggerAt`、`receiverAt`、`serviceAt`、`audioAt` 或 `error`。日志仅保存在本机，最多保留最近 200 条。
+每次闹钟调度都会生成独立触发实例，并依次记录 `scheduledAt`、`triggerAt`、`receiverAt`、`serviceAt`、`audioAt`、`screenAt` 或 `error`。日志仅保存在本机，最多保留最近 200 条。
+
+响铃服务会主动尝试展示全屏闹钟页面，并保留系统全屏通知作为后台限制下的兜底。页面使用 `showWhenLocked` 和 `turnScreenOn` 覆盖锁屏，不会主动解锁设备；用户可直接查看提醒内容并停止闹钟。
 
 系统设置中的“强行停止”会按 Android 安全模型清空应用闹钟，任何第三方 App 都无法绕过；重新打开 StudyBuddy 后会重新核对并安装闹钟。
 

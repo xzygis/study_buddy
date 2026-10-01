@@ -16,6 +16,7 @@ data class AlarmDiagnosticEntry(
     val receiverAt: Long? = null,
     val serviceAt: Long? = null,
     val audioAt: Long? = null,
+    val screenAt: Long? = null,
     val cancelledAt: Long? = null,
     val error: String? = null,
 ) {
@@ -103,6 +104,9 @@ class AlarmDiagnosticStore(context: Context) {
     fun recordAudio(occurrenceId: String, timestamp: Long) =
         updateOccurrence(occurrenceId) { it.copy(audioAt = timestamp) }
 
+    fun recordScreen(occurrenceId: String, timestamp: Long) =
+        updateOccurrence(occurrenceId) { it.copy(screenAt = timestamp) }
+
     fun recordError(occurrenceId: String, stage: String, error: Throwable) =
         recordError(occurrenceId, "$stage: ${error.javaClass.simpleName}: ${error.message.orEmpty()}")
 
@@ -184,6 +188,7 @@ internal fun upsertDiagnostic(
             receiverAt = existing.receiverAt,
             serviceAt = existing.serviceAt,
             audioAt = existing.audioAt,
+            screenAt = existing.screenAt,
         )
     }
     return entries.filterNot { it.occurrenceId == entry.occurrenceId } + value
