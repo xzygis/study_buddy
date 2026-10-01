@@ -1,6 +1,6 @@
-# StudyAlarm for iOS and iPadOS
+# StudyBuddy for iOS and iPadOS
 
-StudyAlarm 是一个使用 SwiftUI 与 AlarmKit 构建的本地学习计划闹钟。用户可以将学习、休息和生活事项组织成按星期重复的计划，再将整组提醒交给系统调度。
+StudyBuddy 是一个使用 SwiftUI 与 AlarmKit 构建的本地学习计划闹钟。用户可以将学习、休息和生活事项组织成按星期重复的计划，再将整组提醒交给系统调度。
 
 应用不依赖账号、服务器、网络请求、后台轮询或保活机制，最低支持 iOS / iPadOS 26。
 
@@ -179,7 +179,7 @@ CoreSimulator 状态异常：
 killall -9 com.apple.CoreSimulator.CoreSimulatorService
 ```
 
-重新启动 Xcode 和 Simulator 后再次执行 `simctl bootstatus`。如果只需重置本 App，可执行以下命令；该操作会删除模拟器中的全部 StudyAlarm 本地数据：
+重新启动 Xcode 和 Simulator 后再次执行 `simctl bootstatus`。如果只需重置本 App，可执行以下命令；该操作会删除模拟器中的全部 StudyBuddy 本地数据：
 
 ```bash
 xcrun simctl uninstall "$IPHONE_UDID" com.xzygis.studybuddy.alarm

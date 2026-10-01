@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="ios/StudyAlarm/Resources/AppIcon60x60@3x.png" width="120" alt="StudyAlarm App Icon" />
+  <img src="ios/StudyAlarm/Resources/AppIcon60x60@3x.png" width="120" alt="StudyBuddy App Icon" />
 </p>
 
 <h1 align="center">StudyBuddy</h1>
@@ -21,7 +21,7 @@
 
 ---
 
-StudyAlarm 是一款面向家庭学习安排的原生 iOS / iPadOS 应用。你可以将学习、休息和日常活动整理成按周重复的计划，由系统在设定时间准时提醒。
+StudyBuddy 是一款面向家庭学习安排的原生 iOS / iPadOS 应用。你可以将学习、休息和日常活动整理成按周重复的计划，由系统在设定时间准时提醒。
 
 所有数据都保存在设备本地，无需注册账号，也不依赖服务器、网络连接或后台持续运行。
 
@@ -37,9 +37,9 @@ StudyAlarm 是一款面向家庭学习安排的原生 iOS / iPadOS 应用。你�
 ## 界面预览
 
 <p align="center">
-  <img src="ios/Screenshots/iphone-home.png" width="260" alt="StudyAlarm iPhone 今日计划" />
+  <img src="ios/Screenshots/iphone-home.png" width="260" alt="StudyBuddy iPhone 今日计划" />
   &nbsp;&nbsp;&nbsp;
-  <img src="ios/Screenshots/ipad-home.png" width="430" alt="StudyAlarm iPad 今日计划" />
+  <img src="ios/Screenshots/ipad-home.png" width="430" alt="StudyBuddy iPad 今日计划" />
 </p>
 
 ## 技术栈
@@ -56,10 +56,10 @@ StudyAlarm 是一款面向家庭学习安排的原生 iOS / iPadOS 应用。你�
 ```bash
 git clone https://github.com/xzygis/study_buddy.git
 cd study_buddy
-open ios/StudyAlarm.xcodeproj
+open ios/*.xcodeproj
 ```
 
-使用 Xcode 26 或更高版本，选择 `StudyAlarm` Scheme 和一个 iOS 26+ 模拟器即可运行。真机运行前需要在 Signing & Capabilities 中选择 Apple Developer Team。
+使用 Xcode 26 或更高版本，选择应用 Scheme 和一个 iOS 26+ 模拟器即可运行。真机运行前需要在 Signing & Capabilities 中选择 Apple Developer Team。
 
 执行核心测试和无签名设备构建：
 
