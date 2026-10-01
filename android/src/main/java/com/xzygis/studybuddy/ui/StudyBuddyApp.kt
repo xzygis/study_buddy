@@ -265,22 +265,47 @@ private fun TodayScreen(
             DateSummary(today, entries.size)
         }
         if (!hasNotificationPermission) {
-            item { PermissionBanner("通知权限未开启，闹钟无法响铃", onOpenNotificationSettings) }
+            item {
+                PermissionBanner(
+                    text = "通知权限未开启，闹钟无法响铃",
+                    actionLabel = "通知设置",
+                    onClick = onOpenNotificationSettings,
+                )
+            }
         }
         if (!canScheduleExactAlarms) {
-            item { PermissionBanner("精确闹钟权限未开启，计划不会准时触发", onOpenExactAlarmSettings) }
+            item {
+                PermissionBanner(
+                    text = "精确闹钟权限未开启，计划不会准时触发",
+                    actionLabel = "闹钟设置",
+                    onClick = onOpenExactAlarmSettings,
+                )
+            }
         }
         if (!canUseFullScreenIntent) {
-            item { PermissionBanner("全屏提醒未开启，锁屏时只显示通知", onOpenFullScreenSettings) }
+            item {
+                PermissionBanner(
+                    text = "全屏提醒未开启，锁屏时只显示通知",
+                    actionLabel = "全屏设置",
+                    onClick = onOpenFullScreenSettings,
+                )
+            }
         }
         if (!isIgnoringBatteryOptimizations) {
-            item { PermissionBanner("电池优化可能导致闹钟延迟，建议设为不受限", onOpenBatterySettings) }
+            item {
+                PermissionBanner(
+                    text = "电池优化可能导致闹钟延迟，建议设为不受限",
+                    actionLabel = "电池设置",
+                    onClick = onOpenBatterySettings,
+                )
+            }
         }
         if (needsAutostartSetup) {
             item {
                 PermissionBanner(
-                    "请在系统管家中允许 StudyBuddy 自启动和后台运行",
-                    onOpenAutostartSettings,
+                    text = "请在系统管家中允许 StudyBuddy 自启动和后台运行",
+                    actionLabel = "自启动设置",
+                    onClick = onOpenAutostartSettings,
                 )
             }
         }
@@ -341,7 +366,11 @@ private fun DateSummary(date: LocalDate, count: Int) {
 }
 
 @Composable
-private fun PermissionBanner(text: String, onClick: () -> Unit) {
+private fun PermissionBanner(
+    text: String,
+    actionLabel: String,
+    onClick: () -> Unit,
+) {
     Surface(color = Color(0xFFFFF3E5), shape = RoundedCornerShape(8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
@@ -349,7 +378,7 @@ private fun PermissionBanner(text: String, onClick: () -> Unit) {
         ) {
             Icon(Icons.Outlined.NotificationsOff, null, tint = StudyOrange)
             Text(text, modifier = Modifier.padding(start = 10.dp).weight(1f), style = MaterialTheme.typography.bodySmall)
-            TextButton(onClick = onClick) { Text("设置") }
+            TextButton(onClick = onClick) { Text(actionLabel) }
         }
     }
 }
