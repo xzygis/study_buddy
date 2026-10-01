@@ -69,7 +69,7 @@ bash ios/scripts/verify.sh
 
 ## 下载安装
 
-合并到 `main` 的 Pull Request 会触发签名归档和 GitHub Release 发布。签名配置完成后，可从 [Releases](https://github.com/xzygis/study_buddy/releases/latest) 下载同时支持 iPhone 和 iPad 的 IPA。
+签名 Secrets 配置完成后，合并到 `main` 的 Pull Request 会触发归档和 GitHub Release 发布。可从 [Releases](https://github.com/xzygis/study_buddy/releases/latest) 下载同时支持 iPhone 和 iPad 的 IPA；未配置签名时，工作流会明确跳过发布，不影响常规 CI。
 
 > Ad Hoc IPA 只能安装到描述文件中已登记的设备。AlarmKit 的实际响铃行为仍需在真机上验证。
 

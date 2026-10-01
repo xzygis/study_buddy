@@ -220,30 +220,53 @@ bash ios/scripts/verify.sh
 
 `.github/workflows/release-ios.yml` 提供自动版本管理、签名归档和 GitHub Release 发布：
 
-1. PR 合并到 `main` 后触发。
-2. 根据最新 Git Tag 自动递增补丁版本；首次发布为 `v1.0.0`。
-3. 运行核心测试。
-4. 导入 Apple Distribution 证书和 Ad Hoc 描述文件。
-5. 归档并导出 `release-testing` 通用 IPA。
-6. 创建 GitHub Release 并上传 `study-alarm-<version>.ipa`。
+1. PR 合并到 `main` 或从 Actions 页面手动运行时触发。
+2. 预检三项签名 Secrets；自动触发且未配置时安全跳过发布。
+3. 根据最新 Git Tag 自动递增补丁版本；首次发布为 `v1.0.0`。
+4. 运行核心测试。
+5. 导入 Apple Distribution 证书和 Ad Hoc 描述文件。
+6. 归档并导出 `release-testing` 通用 IPA。
+7. 创建 GitHub Release 并上传 `study-alarm-<version>.ipa`。
 
 需要配置以下 GitHub Actions Secrets：
 
 | Secret | 内容 |
 | --- | --- |
-| `APPLE_TEAM_ID` | Apple Developer Team ID |
 | `IOS_DISTRIBUTION_CERTIFICATE_BASE64` | Apple Distribution `.p12` 文件的 Base64 |
 | `IOS_DISTRIBUTION_CERTIFICATE_PASSWORD` | `.p12` 导出密码 |
 | `IOS_PROVISIONING_PROFILE_BASE64` | Bundle ID 对应的 Ad Hoc 描述文件 Base64 |
 
-证书和描述文件应保存在用户目录，不要写入项目：
+Team ID 会从 Provisioning Profile 自动读取并校验，无需单独配置。
+
+准备签名材料：
+
+1. 在 Apple Developer 后台创建 Apple Distribution 证书。
+2. 从钥匙串访问导出包含私钥的 `.p12`，并设置独立密码。
+3. 为 `com.xzygis.studybuddy.alarm` 创建 Ad Hoc Provisioning Profile，包含需要安装 IPA 的设备。
+4. 下载 `.mobileprovision` 文件。
+
+证书和描述文件应保存在用户目录，不要写入项目。可以使用 GitHub CLI 直接创建 Secrets：
 
 ```bash
-base64 < ~/path/to/distribution.p12 | pbcopy
-base64 < ~/path/to/StudyAlarm.mobileprovision | pbcopy
+base64 < ~/path/to/distribution.p12 |
+  gh secret set IOS_DISTRIBUTION_CERTIFICATE_BASE64 \
+    --repo xzygis/study_buddy
+
+gh secret set IOS_DISTRIBUTION_CERTIFICATE_PASSWORD \
+  --repo xzygis/study_buddy
+
+base64 < ~/path/to/StudyAlarm.mobileprovision |
+  gh secret set IOS_PROVISIONING_PROFILE_BASE64 \
+    --repo xzygis/study_buddy
 ```
 
-Ad Hoc IPA 只能安装到描述文件中已登记的设备。
+确认三项配置均已创建：
+
+```bash
+gh secret list --repo xzygis/study_buddy
+```
+
+Secret 值不会被命令回显。配置完成后，可从 Actions 页面手动运行 **Build & Release IPA**；缺少签名配置时，手动运行会立即列出缺失项并退出。Ad Hoc IPA 只能安装到描述文件中已登记的设备。
 
 ## 真机验收
 
