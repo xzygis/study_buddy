@@ -7,8 +7,10 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -42,6 +44,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.SportsBasketball
 import androidx.compose.material.icons.filled.WbSunny
@@ -90,12 +93,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xzygis.studybuddy.PlanViewModel
+import com.xzygis.studybuddy.alarm.AlarmDiagnosticEntry
+import com.xzygis.studybuddy.alarm.AlarmDiagnosticStatus
 import com.xzygis.studybuddy.data.PlanRecord
 import com.xzygis.studybuddy.data.StudyPlan
 import com.xzygis.studybuddy.data.StudyReminder
 import com.xzygis.studybuddy.data.Weekday
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.delay
@@ -120,6 +127,8 @@ fun StudyBuddyApp(
     val state by viewModel.state.collectAsStateWithLifecycle()
     var screen by remember { mutableStateOf(MainScreen.TODAY) }
     var editingPlan by remember { mutableStateOf<StudyPlan?>(null) }
+    var diagnosticPlan by remember { mutableStateOf<StudyPlan?>(null) }
+    var diagnosticEpoch by remember { mutableIntStateOf(0) }
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(state.message) {
@@ -143,6 +152,20 @@ fun StudyBuddyApp(
         return
     }
 
+    diagnosticPlan?.let { plan ->
+        AlarmLogScreen(
+            plan = plan,
+            entries = remember(plan.id, diagnosticEpoch) { viewModel.diagnostics(plan.id) },
+            onBack = { diagnosticPlan = null },
+            onRefresh = { diagnosticEpoch += 1 },
+            onClear = {
+                viewModel.clearDiagnostics(plan.id)
+                diagnosticEpoch += 1
+            },
+        )
+        return
+    }
+
     BoxWithConstraints(Modifier.fillMaxSize()) {
         if (maxWidth >= 700.dp) {
             TabletLayout(
@@ -161,6 +184,10 @@ fun StudyBuddyApp(
                 onOpenBatterySettings = onOpenBatterySettings,
                 onOpenAutostartSettings = onOpenAutostartSettings,
                 onEdit = { editingPlan = it },
+                onViewLogs = {
+                    diagnosticEpoch += 1
+                    diagnosticPlan = it
+                },
                 snackbar = snackbar,
             )
         } else {
@@ -218,6 +245,10 @@ fun StudyBuddyApp(
                         isBusy = state.isBusy,
                         onEnablePlan = onEnablePlan,
                         onEdit = { editingPlan = it },
+                        onViewLogs = {
+                            diagnosticEpoch += 1
+                            diagnosticPlan = it
+                        },
                     )
                 }
             }
@@ -259,6 +290,24 @@ private fun TodayScreen(
         reminderMinutes = entries.map { it.second.minutesSinceMidnight },
         currentMinute = currentMinute,
     )
+    val diagnostics = remember(currentMinute, records) { viewModel.allDiagnostics() }
+    val enabledPlanIds = records.filter(viewModel::isEnabled).map { it.plan.id }.toSet()
+    val nowMillis = System.currentTimeMillis()
+    val nextAlarm = diagnostics
+        .filter {
+            it.planId in enabledPlanIds &&
+                it.triggerAt > nowMillis &&
+                it.cancelledAt == null &&
+                it.error == null
+        }
+        .minByOrNull { it.triggerAt }
+    val latestResult = diagnostics
+        .filter {
+            it.planId in enabledPlanIds &&
+                it.triggerAt <= nowMillis &&
+                it.cancelledAt == null
+        }
+        .maxByOrNull { it.triggerAt }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -270,6 +319,11 @@ private fun TodayScreen(
         }
         item {
             DateSummary(today, entries.size)
+        }
+        if (enabledPlanIds.isNotEmpty()) {
+            item {
+                AlarmHealthSummary(nextAlarm, latestResult, nowMillis)
+            }
         }
         if (!hasNotificationPermission) {
             item {
@@ -298,23 +352,13 @@ private fun TodayScreen(
                 )
             }
         }
-        if (!isIgnoringBatteryOptimizations) {
-            item {
-                PermissionBanner(
-                    text = "电池优化可能导致闹钟延迟，建议设为不受限",
-                    actionLabel = "电池设置",
-                    onClick = onOpenBatterySettings,
-                )
-            }
-        }
-        if (needsAutostartSetup) {
-            item {
-                PermissionBanner(
-                    text = "请在系统管家中允许 StudyBuddy 自启动和后台运行",
-                    actionLabel = "自启动设置",
-                    onClick = onOpenAutostartSettings,
-                )
-            }
+        item {
+            BackgroundSettingsPanel(
+                isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
+                showAutostartSettings = needsAutostartSetup,
+                onOpenBatterySettings = onOpenBatterySettings,
+                onOpenAutostartSettings = onOpenAutostartSettings,
+            )
         }
         item {
             Text(
@@ -332,6 +376,39 @@ private fun TodayScreen(
             itemsIndexed(entries, key = { _, entry -> entry.second.id }) { index, (planName, reminder) ->
                 TimelineRow(planName, reminder, statuses[index])
             }
+        }
+    }
+}
+
+@Composable
+private fun AlarmHealthSummary(
+    nextAlarm: AlarmDiagnosticEntry?,
+    latestResult: AlarmDiagnosticEntry?,
+    now: Long,
+) {
+    Card(
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = CardDefaults.outlinedCardBorder(),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(14.dp)) {
+            Text("闹钟运行状态", fontWeight = FontWeight.Bold)
+            Text(
+                nextAlarm?.let {
+                    "下一次：${formatDiagnosticTime(it.triggerAt)} · ${it.title}"
+                } ?: "下一次：暂无有效调度记录",
+                modifier = Modifier.padding(top = 8.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                latestResult?.let {
+                    "最近一次：${diagnosticStatusText(it.status(now))} · ${formatDiagnosticTime(it.triggerAt)}"
+                } ?: "最近一次：暂无触发记录",
+                modifier = Modifier.padding(top = 4.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = latestResult?.status(now).diagnosticColor(),
+            )
         }
     }
 }
@@ -386,6 +463,77 @@ private fun PermissionBanner(
             Icon(Icons.Outlined.NotificationsOff, null, tint = StudyOrange)
             Text(text, modifier = Modifier.padding(start = 10.dp).weight(1f), style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = onClick) { Text(actionLabel) }
+        }
+    }
+}
+
+@Composable
+private fun BackgroundSettingsPanel(
+    isIgnoringBatteryOptimizations: Boolean,
+    showAutostartSettings: Boolean,
+    onOpenBatterySettings: () -> Unit,
+    onOpenAutostartSettings: () -> Unit,
+) {
+    Card(
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = CardDefaults.outlinedCardBorder(),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(14.dp)) {
+            Text("后台运行设置", fontWeight = FontWeight.Bold)
+            Text(
+                "这些系统设置会影响锁屏和后台状态下的提醒。",
+                modifier = Modifier.padding(top = 3.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            BackgroundSettingRow(
+                title = "电池优化",
+                status = if (isIgnoringBatteryOptimizations) {
+                    "已设为不受限制"
+                } else {
+                    "建议设为不受限制"
+                },
+                actionLabel = "电池设置",
+                statusColor = if (isIgnoringBatteryOptimizations) {
+                    StudyGreen
+                } else {
+                    StudyOrange
+                },
+                onClick = onOpenBatterySettings,
+            )
+            if (showAutostartSettings) {
+                HorizontalDivider()
+                BackgroundSettingRow(
+                    title = "自启动与后台运行",
+                    status = "系统不提供授权状态，请按需确认",
+                    actionLabel = "自启动设置",
+                    statusColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    onClick = onOpenAutostartSettings,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BackgroundSettingRow(
+    title: String,
+    status: String,
+    actionLabel: String,
+    statusColor: Color,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            Text(status, style = MaterialTheme.typography.bodySmall, color = statusColor)
+        }
+        TextButton(onClick = onClick) {
+            Text(actionLabel)
         }
     }
 }
@@ -462,6 +610,7 @@ private fun PlansScreen(
     isBusy: Boolean,
     onEnablePlan: (String) -> Unit,
     onEdit: (StudyPlan) -> Unit,
+    onViewLogs: (StudyPlan) -> Unit,
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -476,7 +625,7 @@ private fun PlansScreen(
             }
         }
         items(records, key = { it.plan.id }) { record ->
-            PlanCard(viewModel, record, isBusy, onEnablePlan, onEdit)
+            PlanCard(viewModel, record, isBusy, onEnablePlan, onEdit, onViewLogs)
         }
         item {
             Text(
@@ -489,6 +638,7 @@ private fun PlansScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PlanCard(
     viewModel: PlanViewModel,
@@ -496,9 +646,14 @@ private fun PlanCard(
     isBusy: Boolean,
     onEnablePlan: (String) -> Unit,
     onEdit: (StudyPlan) -> Unit,
+    onViewLogs: (StudyPlan) -> Unit,
 ) {
     var confirmDelete by remember(record.plan.id) { mutableStateOf(false) }
     Card(
+        modifier = Modifier.combinedClickable(
+            onClick = {},
+            onLongClick = { onViewLogs(record.plan) },
+        ),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         border = CardDefaults.outlinedCardBorder(),
@@ -608,6 +763,7 @@ private fun TabletLayout(
     onOpenBatterySettings: () -> Unit,
     onOpenAutostartSettings: () -> Unit,
     onEdit: (StudyPlan) -> Unit,
+    onViewLogs: (StudyPlan) -> Unit,
     snackbar: SnackbarHostState,
 ) {
     Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding ->
@@ -633,6 +789,7 @@ private fun TabletLayout(
                     isBusy = isBusy,
                     onEnablePlan = onEnablePlan,
                     onEdit = onEdit,
+                    onViewLogs = onViewLogs,
                 )
             }
             TodayScreen(
@@ -653,6 +810,188 @@ private fun TabletLayout(
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AlarmLogScreen(
+    plan: StudyPlan,
+    entries: List<AlarmDiagnosticEntry>,
+    onBack: () -> Unit,
+    onRefresh: () -> Unit,
+    onClear: () -> Unit,
+) {
+    var confirmClear by remember(plan.id) { mutableStateOf(false) }
+    val now = System.currentTimeMillis()
+    BackHandler(onBack = onBack)
+
+    Scaffold(
+        containerColor = AppBackground,
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("运行日志", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onRefresh) {
+                        Icon(Icons.Default.Refresh, "刷新")
+                    }
+                    IconButton(onClick = { confirmClear = true }, enabled = entries.isNotEmpty()) {
+                        Icon(Icons.Default.Delete, "清空日志")
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier.padding(padding).fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item {
+                Column {
+                    Text(plan.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                        "每次触发按调度、接收、服务、音频四个阶段记录，最多保留最近 200 条。",
+                        modifier = Modifier.padding(top = 4.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (entries.isEmpty()) {
+                item {
+                    Text(
+                        "暂无日志。启用或重新同步计划后会产生调度记录。",
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else {
+                items(entries, key = { it.occurrenceId }) { entry ->
+                    AlarmLogEntryCard(entry, now)
+                }
+            }
+        }
+    }
+
+    if (confirmClear) {
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            title = { Text("清空运行日志？") },
+            text = { Text("只会清除此计划的诊断记录，不会删除计划或取消闹钟。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmClear = false
+                        onClear()
+                    },
+                ) {
+                    Text("清空")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClear = false }) {
+                    Text("取消")
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun AlarmLogEntryCard(entry: AlarmDiagnosticEntry, now: Long) {
+    val status = entry.status(now)
+    Card(
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = CardDefaults.outlinedCardBorder(),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(entry.title, fontWeight = FontWeight.Bold)
+                    Text(
+                        formatDiagnosticTime(entry.triggerAt),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    diagnosticStatusText(status),
+                    color = status.diagnosticColor(),
+                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            HorizontalDivider(Modifier.padding(vertical = 10.dp))
+            DiagnosticTimeRow("scheduledAt", entry.scheduledAt)
+            DiagnosticTimeRow("triggerAt", entry.triggerAt)
+            DiagnosticTimeRow("receiverAt", entry.receiverAt)
+            DiagnosticTimeRow("serviceAt", entry.serviceAt)
+            DiagnosticTimeRow("audioAt", entry.audioAt)
+            DiagnosticTimeRow("screenAt", entry.screenAt)
+            entry.cancelledAt?.let { DiagnosticTimeRow("cancelledAt", it) }
+            entry.error?.let {
+                Text(
+                    "error: $it",
+                    modifier = Modifier.padding(top = 6.dp),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DiagnosticTimeRow(label: String, timestamp: Long?) {
+    Row(Modifier.fillMaxWidth()) {
+        Text(
+            label,
+            modifier = Modifier.width(92.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            formatDiagnosticTime(timestamp),
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+private fun diagnosticStatusText(status: AlarmDiagnosticStatus): String = when (status) {
+    AlarmDiagnosticStatus.SCHEDULED -> "等待触发"
+    AlarmDiagnosticStatus.RECEIVED -> "系统已触发"
+    AlarmDiagnosticStatus.SERVICE_STARTED -> "服务已启动"
+    AlarmDiagnosticStatus.RINGING -> "已开始响铃"
+    AlarmDiagnosticStatus.CANCELLED -> "已取消"
+    AlarmDiagnosticStatus.MISSED -> "疑似漏提醒"
+    AlarmDiagnosticStatus.ERROR -> "发生错误"
+}
+
+@Composable
+private fun AlarmDiagnosticStatus?.diagnosticColor(): Color = when (this) {
+    AlarmDiagnosticStatus.RINGING -> StudyGreen
+    AlarmDiagnosticStatus.MISSED,
+    AlarmDiagnosticStatus.ERROR,
+    -> MaterialTheme.colorScheme.error
+    AlarmDiagnosticStatus.RECEIVED,
+    AlarmDiagnosticStatus.SERVICE_STARTED,
+    -> StudyOrange
+    else -> MaterialTheme.colorScheme.onSurfaceVariant
+}
+
+private val DiagnosticDateFormatter = DateTimeFormatter.ofPattern("MM-dd HH:mm:ss")
+
+private fun formatDiagnosticTime(timestamp: Long?): String =
+    timestamp?.let {
+        Instant.ofEpochMilli(it)
+            .atZone(ZoneId.systemDefault())
+            .format(DiagnosticDateFormatter)
+    } ?: "--"
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable

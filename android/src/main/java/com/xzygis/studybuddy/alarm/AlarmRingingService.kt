@@ -16,12 +16,15 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import com.xzygis.studybuddy.StudyBuddyApplication
 
 class AlarmRingingService : Service() {
     private var player: MediaPlayer? = null
     private var vibrator: Vibrator? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var currentBindingId: String? = null
+    private val diagnostics: AlarmDiagnosticStore
+        get() = (application as StudyBuddyApplication).alarmDiagnostics
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -30,21 +33,37 @@ class AlarmRingingService : Service() {
         val bindingId = intent?.getStringExtra(AndroidAlarmScheduler.EXTRA_BINDING_ID)
         val title = intent?.getStringExtra(AndroidAlarmScheduler.EXTRA_TITLE) ?: "学习提醒"
         val ringtoneUri = intent?.getStringExtra(AndroidAlarmScheduler.EXTRA_RINGTONE_URI)
+        val occurrenceId = intent?.getStringExtra(AndroidAlarmScheduler.EXTRA_OCCURRENCE_ID)
+            ?: bindingId?.let { AlarmDiagnosticStore.occurrenceId(it, System.currentTimeMillis()) }
         if (bindingId == null) {
             stopSelf()
             return START_NOT_STICKY
         }
+        val resolvedOccurrenceId = occurrenceId
+            ?: AlarmDiagnosticStore.occurrenceId(bindingId, System.currentTimeMillis())
         if (action == ACTION_STOP || bindingId == currentBindingId && player != null) {
             if (action == ACTION_STOP) {
                 stopSelf()
                 return START_NOT_STICKY
             }
         }
-        enterForeground(bindingId, title)
+        try {
+            enterForeground(bindingId, title, resolvedOccurrenceId)
+            diagnostics.recordService(resolvedOccurrenceId, System.currentTimeMillis())
+        } catch (error: Exception) {
+            diagnostics.recordError(resolvedOccurrenceId, "foreground", error)
+            stopSelf()
+            return START_NOT_STICKY
+        }
         if (bindingId != currentBindingId) {
             currentBindingId = bindingId
             acquireWakeLock()
-            startAlarmSound(ringtoneUri)
+            launchAlarmScreen(bindingId, title, resolvedOccurrenceId)
+            if (startAlarmSound(ringtoneUri, resolvedOccurrenceId)) {
+                diagnostics.recordAudio(resolvedOccurrenceId, System.currentTimeMillis())
+            } else {
+                diagnostics.recordError(resolvedOccurrenceId, "audio: no playable ringtone")
+            }
             startVibration()
         }
         return START_NOT_STICKY
@@ -60,9 +79,9 @@ class AlarmRingingService : Service() {
         super.onDestroy()
     }
 
-    private fun enterForeground(bindingId: String, title: String) {
+    private fun enterForeground(bindingId: String, title: String, occurrenceId: String) {
         val notificationId = AlarmNotifier.notificationId(bindingId)
-        val notification = AlarmNotifier.buildNotification(this, bindingId, title)
+        val notification = AlarmNotifier.buildNotification(this, bindingId, title, occurrenceId)
         ServiceCompat.startForeground(
             this,
             notificationId,
@@ -73,6 +92,20 @@ class AlarmRingingService : Service() {
                 0
             },
         )
+    }
+
+    private fun launchAlarmScreen(bindingId: String, title: String, occurrenceId: String) {
+        runCatching {
+            startActivity(
+                AlarmActivity.intent(
+                    context = this,
+                    bindingId = bindingId,
+                    title = title,
+                    notificationId = AlarmNotifier.notificationId(bindingId),
+                    occurrenceId = occurrenceId,
+                ),
+            )
+        }
     }
 
     private fun acquireWakeLock() {
@@ -87,17 +120,18 @@ class AlarmRingingService : Service() {
         wakeLock = null
     }
 
-    private fun startAlarmSound(ringtoneUri: String?) {
+    private fun startAlarmSound(ringtoneUri: String?, occurrenceId: String?): Boolean {
         stopPlayer()
         val sounds = listOfNotNull(
             ringtoneUri?.let { runCatching { Uri.parse(it) }.getOrNull() },
             RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
             RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
         ).distinct()
-        player = sounds.firstNotNullOfOrNull(::createPlayer)
+        player = sounds.firstNotNullOfOrNull { createPlayer(it, occurrenceId) }
+        return player != null
     }
 
-    private fun createPlayer(sound: Uri): MediaPlayer? {
+    private fun createPlayer(sound: Uri, occurrenceId: String?): MediaPlayer? {
         val candidate = MediaPlayer()
         return runCatching {
             candidate.apply {
@@ -109,6 +143,15 @@ class AlarmRingingService : Service() {
                 )
                 setDataSource(this@AlarmRingingService, sound)
                 isLooping = true
+                setOnErrorListener { _, what, extra ->
+                    occurrenceId?.let {
+                        diagnostics.recordError(
+                            it,
+                            "audio_runtime: MediaPlayer what=$what extra=$extra",
+                        )
+                    }
+                    false
+                }
                 prepare()
                 start()
             }
@@ -160,6 +203,7 @@ class AlarmRingingService : Service() {
             bindingId: String,
             title: String,
             ringtoneUri: String?,
+            occurrenceId: String,
         ) {
             val intent = Intent(context, AlarmRingingService::class.java).apply {
                 action = ACTION_START
@@ -167,6 +211,7 @@ class AlarmRingingService : Service() {
                 putExtra(AndroidAlarmScheduler.EXTRA_BINDING_ID, bindingId)
                 putExtra(AndroidAlarmScheduler.EXTRA_TITLE, title)
                 putExtra(AndroidAlarmScheduler.EXTRA_RINGTONE_URI, ringtoneUri)
+                putExtra(AndroidAlarmScheduler.EXTRA_OCCURRENCE_ID, occurrenceId)
             }
             ContextCompat.startForegroundService(context, intent)
         }

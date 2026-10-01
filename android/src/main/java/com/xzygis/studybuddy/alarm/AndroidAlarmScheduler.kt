@@ -15,6 +15,7 @@ import java.time.ZonedDateTime
 class AndroidAlarmScheduler(
     private val context: Context,
     private val clock: Clock = Clock.systemDefaultZone(),
+    private val diagnostics: AlarmDiagnosticStore = AlarmDiagnosticStore(context),
 ) {
     private val alarmManager = context.getSystemService(AlarmManager::class.java)
 
@@ -34,19 +35,39 @@ class AndroidAlarmScheduler(
     fun schedule(planId: String, binding: AlarmBinding) {
         check(canScheduleExactAlarms()) { "系统尚未允许精确闹钟，请先授权。" }
         val triggerAt = nextTrigger(binding).toInstant().toEpochMilli()
-        alarmManager.setAlarmClock(
-            AlarmManager.AlarmClockInfo(triggerAt, showAppPendingIntent()),
-            alarmPendingIntent(planId, binding, PendingIntent.FLAG_UPDATE_CURRENT),
+        val occurrenceId = AlarmDiagnosticStore.occurrenceId(binding.id, triggerAt)
+        diagnostics.recordScheduled(
+            occurrenceId = occurrenceId,
+            planId = planId,
+            bindingId = binding.id,
+            title = binding.title,
+            scheduledAt = clock.millis(),
+            triggerAt = triggerAt,
         )
+        try {
+            alarmManager.setAlarmClock(
+                AlarmManager.AlarmClockInfo(triggerAt, showAppPendingIntent()),
+                alarmPendingIntent(
+                    planId = planId,
+                    binding = binding,
+                    occurrenceId = occurrenceId,
+                    triggerAt = triggerAt,
+                    flags = PendingIntent.FLAG_UPDATE_CURRENT,
+                ),
+            )
+        } catch (error: Exception) {
+            diagnostics.recordError(occurrenceId, "schedule", error)
+            throw error
+        }
     }
 
     fun cancel(bindingId: String) {
-        val pending = cancelPendingIntent(bindingId) ?: return
-        alarmManager.cancel(pending)
-        pending.cancel()
+        cancelPendingIntent(bindingId)?.let { pending ->
+            alarmManager.cancel(pending)
+            pending.cancel()
+        }
+        diagnostics.recordCancelled(bindingId, clock.millis())
     }
-
-    fun exists(bindingId: String): Boolean = cancelPendingIntent(bindingId) != null
 
     fun schedule(record: PlanRecord) {
         record.bindings.forEach { schedule(record.plan.id, it) }
@@ -58,6 +79,8 @@ class AndroidAlarmScheduler(
     private fun alarmPendingIntent(
         planId: String,
         binding: AlarmBinding,
+        occurrenceId: String,
+        triggerAt: Long,
         flags: Int,
     ): PendingIntent {
         val intent = Intent(context, AlarmReceiver::class.java).apply {
@@ -70,6 +93,8 @@ class AndroidAlarmScheduler(
             putExtra(EXTRA_HOUR, binding.hour)
             putExtra(EXTRA_MINUTE, binding.minute)
             putExtra(EXTRA_RINGTONE_URI, binding.ringtoneUri)
+            putExtra(EXTRA_OCCURRENCE_ID, occurrenceId)
+            putExtra(EXTRA_TRIGGER_AT, triggerAt)
             putExtra(
                 EXTRA_WEEKDAYS,
                 binding.weekdays.map { it.name }.toTypedArray(),
@@ -117,5 +142,7 @@ class AndroidAlarmScheduler(
         const val EXTRA_MINUTE = "minute"
         const val EXTRA_WEEKDAYS = "weekdays"
         const val EXTRA_RINGTONE_URI = "ringtone_uri"
+        const val EXTRA_OCCURRENCE_ID = "occurrence_id"
+        const val EXTRA_TRIGGER_AT = "trigger_at"
     }
 }

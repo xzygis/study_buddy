@@ -36,13 +36,14 @@ object AlarmNotifier {
         context: Context,
         bindingId: String,
         title: String,
+        occurrenceId: String,
     ): Notification {
         ensureChannel(context)
         val notificationId = notificationId(bindingId)
         val fullScreen = PendingIntent.getActivity(
             context,
             notificationId,
-            AlarmActivity.intent(context, bindingId, title, notificationId),
+            AlarmActivity.intent(context, bindingId, title, notificationId, occurrenceId),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val stop = PendingIntent.getBroadcast(
