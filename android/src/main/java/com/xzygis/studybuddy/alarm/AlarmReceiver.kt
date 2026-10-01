@@ -23,7 +23,7 @@ class AlarmReceiver : BroadcastReceiver() {
             }.toSet(),
         )
 
+        runCatching { AlarmRingingService.start(context, bindingId, title) }
         runCatching { AndroidAlarmScheduler(context).schedule(planId, binding) }
-        runCatching { AlarmNotifier.show(context, bindingId, title) }
     }
 }

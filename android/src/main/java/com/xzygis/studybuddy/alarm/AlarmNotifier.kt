@@ -7,22 +7,15 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
-import android.media.AudioAttributes
-import android.media.RingtoneManager
 import android.net.Uri
 import com.xzygis.studybuddy.R
 
 object AlarmNotifier {
-    const val CHANNEL_ID = "study_alarm"
+    const val CHANNEL_ID = "study_alarm_ringing"
     const val EXTRA_NOTIFICATION_ID = "notification_id"
 
     fun createChannel(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
-        val sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-        val attributes = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_ALARM)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .build()
         val channel = NotificationChannel(
             CHANNEL_ID,
             context.getString(R.string.alarm_channel_name),
@@ -31,16 +24,20 @@ object AlarmNotifier {
             description = context.getString(R.string.alarm_channel_description)
             enableVibration(true)
             vibrationPattern = longArrayOf(0, 500, 300, 500)
-            setSound(sound, attributes)
+            setSound(null, null)
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             setBypassDnd(true)
         }
         manager.createNotificationChannel(channel)
     }
 
-    fun show(context: Context, bindingId: String, title: String) {
+    fun buildNotification(
+        context: Context,
+        bindingId: String,
+        title: String,
+        notificationId: Int = notificationId(bindingId),
+    ): Notification {
         createChannel(context)
-        val notificationId = notificationId(bindingId)
         val fullScreenIntent = PendingIntent.getActivity(
             context,
             notificationId,
@@ -70,12 +67,12 @@ object AlarmNotifier {
             .addAction(Notification.Action.Builder(null, "停止", stopIntent).build())
             .build()
             .apply { flags = flags or Notification.FLAG_INSISTENT or Notification.FLAG_NO_CLEAR }
-        context.getSystemService(NotificationManager::class.java).notify(notificationId, notification)
+        return notification
     }
 
     fun stop(context: Context, notificationId: Int) {
         context.getSystemService(NotificationManager::class.java).cancel(notificationId)
     }
 
-    private fun notificationId(bindingId: String) = bindingId.hashCode() and Int.MAX_VALUE
+    fun notificationId(bindingId: String) = bindingId.hashCode() and Int.MAX_VALUE
 }
