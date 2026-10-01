@@ -1,6 +1,5 @@
 package com.xzygis.studybuddy.ui
 
-import android.app.TimePickerDialog
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -22,6 +21,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -69,6 +70,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -76,8 +78,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -90,6 +92,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.delay
 
 private enum class MainScreen { TODAY, PLANS }
 
@@ -218,10 +221,22 @@ private fun TodayScreen(
 ) {
     val today = LocalDate.now()
     val weekday = Weekday.entries[today.dayOfWeek.value - 1]
+    var currentMinute by remember { mutableIntStateOf(LocalTime.now().toSecondOfDay() / 60) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            val now = LocalTime.now()
+            currentMinute = now.toSecondOfDay() / 60
+            delay((60 - now.second).coerceAtLeast(1) * 1_000L)
+        }
+    }
     val entries = records
         .filter { viewModel.isEnabled(it) && weekday in it.plan.weekdays }
         .flatMap { record -> record.plan.reminders.map { record.plan.name to it } }
         .sortedBy { it.second.minutesSinceMidnight }
+    val statuses = timelineStatuses(
+        reminderMinutes = entries.map { it.second.minutesSinceMidnight },
+        currentMinute = currentMinute,
+    )
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -254,8 +269,8 @@ private fun TodayScreen(
                 EmptyToday()
             }
         } else {
-            items(entries, key = { it.second.id }) { (planName, reminder) ->
-                TimelineRow(planName, reminder)
+            itemsIndexed(entries, key = { _, entry -> entry.second.id }) { index, (planName, reminder) ->
+                TimelineRow(planName, reminder, statuses[index])
             }
         }
     }
@@ -329,12 +344,11 @@ private fun EmptyToday() {
 }
 
 @Composable
-private fun TimelineRow(planName: String, reminder: StudyReminder) {
-    val now = LocalTime.now().toSecondOfDay() / 60
-    val state = when {
-        now < reminder.minutesSinceMidnight -> "未开始" to MaterialTheme.colorScheme.onSurfaceVariant
-        now <= reminder.minutesSinceMidnight + 40 -> "进行中" to StudyOrange
-        else -> "已提醒" to StudyGreen
+private fun TimelineRow(planName: String, reminder: StudyReminder, status: TimelineStatus) {
+    val state = when (status) {
+        TimelineStatus.UPCOMING -> "未开始" to MaterialTheme.colorScheme.onSurfaceVariant
+        TimelineStatus.ACTIVE -> "进行中" to StudyOrange
+        TimelineStatus.REMINDED -> "已提醒" to StudyGreen
     }
     Row(verticalAlignment = Alignment.Top) {
         Text(
@@ -687,7 +701,7 @@ private fun ReminderEditor(
     onChange: (StudyReminder) -> Unit,
     onDelete: () -> Unit,
 ) {
-    val context = LocalContext.current
+    var editingTime by remember { mutableStateOf(false) }
     Card(
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -708,15 +722,7 @@ private fun ReminderEditor(
                 headlineContent = { Text("开始时间") },
                 trailingContent = {
                     TextButton(
-                        onClick = {
-                            TimePickerDialog(
-                                context,
-                                { _, hour, minute -> onChange(reminder.copy(hour = hour, minute = minute)) },
-                                reminder.hour,
-                                reminder.minute,
-                                true,
-                            ).show()
-                        },
+                        onClick = { editingTime = true },
                     ) {
                         Text(reminder.timeText, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     }
@@ -724,4 +730,76 @@ private fun ReminderEditor(
             )
         }
     }
+    if (editingTime) {
+        NumericTimeDialog(
+            initialHour = reminder.hour,
+            initialMinute = reminder.minute,
+            onDismiss = { editingTime = false },
+            onConfirm = { hour, minute ->
+                onChange(reminder.copy(hour = hour, minute = minute))
+                editingTime = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun NumericTimeDialog(
+    initialHour: Int,
+    initialMinute: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (Int, Int) -> Unit,
+) {
+    var hourText by remember(initialHour) { mutableStateOf(initialHour.toString().padStart(2, '0')) }
+    var minuteText by remember(initialMinute) { mutableStateOf(initialMinute.toString().padStart(2, '0')) }
+    val hour = hourText.toIntOrNull()
+    val minute = minuteText.toIntOrNull()
+    val valid = hour != null && hour in 0..23 && minute != null && minute in 0..59
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("设置时间") },
+        text = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                OutlinedTextField(
+                    value = hourText,
+                    onValueChange = { value ->
+                        if (value.length <= 2 && value.all(Char::isDigit)) hourText = value
+                    },
+                    modifier = Modifier.weight(1f),
+                    label = { Text("小时") },
+                    placeholder = { Text("00") },
+                    singleLine = true,
+                    isError = hour == null || hour !in 0..23,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
+                Text(":", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                OutlinedTextField(
+                    value = minuteText,
+                    onValueChange = { value ->
+                        if (value.length <= 2 && value.all(Char::isDigit)) minuteText = value
+                    },
+                    modifier = Modifier.weight(1f),
+                    label = { Text("分钟") },
+                    placeholder = { Text("00") },
+                    singleLine = true,
+                    isError = minute == null || minute !in 0..59,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = valid,
+                onClick = { onConfirm(requireNotNull(hour), requireNotNull(minute)) },
+            ) {
+                Text("确定")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+    )
 }

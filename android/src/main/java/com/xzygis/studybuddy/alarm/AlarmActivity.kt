@@ -67,6 +67,7 @@ class AlarmActivity : ComponentActivity() {
         setContent {
             StudyBuddyTheme {
                 AlarmScreen(title) {
+                    AlarmRingingService.stop(this)
                     if (notificationId >= 0) AlarmNotifier.stop(this, notificationId)
                     finishAndRemoveTask()
                 }
