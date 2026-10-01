@@ -125,7 +125,7 @@
             overflow: hidden;
             position: relative;
             background: #e5e5e5;
-            background-image: 
+            background-image:
                 linear-gradient(45deg, #d5d5d5 25%, transparent 25%),
                 linear-gradient(-45deg, #d5d5d5 25%, transparent 25%),
                 linear-gradient(45deg, transparent 75%, #d5d5d5 75%),
@@ -382,7 +382,7 @@
                 </div>
             </div>
         </header>
-        
+
         <div class="canvas-container" id="canvasContainer">
             <div class="canvas-viewport" id="canvasViewport">
                 <div class="pages-placeholder" id="pagesPlaceholder">
@@ -395,7 +395,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="page-hover-menu" id="pageHoverMenu" style="display: none;">
             <div class="hover-menu-header">
                 <span class="hover-menu-title" id="hoverMenuTitle">Page Name</span>
@@ -473,16 +473,16 @@
                     e.preventDefault();
                     const delta = e.deltaY > 0 ? -0.1 : 0.1;
                     const newScale = Math.max(0.25, Math.min(2, canvasState.scale + delta));
-                    
+
                     const rect = canvasContainer.getBoundingClientRect();
                     const mouseX = e.clientX - rect.left;
                     const mouseY = e.clientY - rect.top;
-                    
+
                     const scaleChange = newScale / canvasState.scale;
                     canvasState.offsetX = mouseX - (mouseX - canvasState.offsetX) * scaleChange;
                     canvasState.offsetY = mouseY - (mouseY - canvasState.offsetY) * scaleChange;
                     canvasState.scale = newScale;
-                    
+
                     updateCanvasTransform();
                 });
 
@@ -503,7 +503,7 @@
                         canvasState.offsetY = canvasState.lastOffsetY + (e.clientY - canvasState.dragStartY);
                         updateCanvasTransform();
                     }
-                    
+
                     if (draggingPage) {
                         const dx = (e.clientX - pageDragStart.x) / canvasState.scale;
                         const dy = (e.clientY - pageDragStart.y) / canvasState.scale;
@@ -552,7 +552,7 @@
                 navigationSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
                 navigationSvg.setAttribute('class', 'navigation-lines-svg');
                 navigationSvg.style.cssText = 'position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible;';
-                
+
                 const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
                 const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
                 marker.setAttribute('id', 'arrowhead');
@@ -561,27 +561,27 @@
                 marker.setAttribute('refX', '9');
                 marker.setAttribute('refY', '3.5');
                 marker.setAttribute('orient', 'auto');
-                
+
                 const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
                 polygon.setAttribute('points', '0 0, 10 3.5, 0 7');
                 polygon.setAttribute('fill', '#6366f1');
-                
+
                 marker.appendChild(polygon);
                 defs.appendChild(marker);
                 navigationSvg.appendChild(defs);
-                
+
                 canvasViewport.insertBefore(navigationSvg, canvasViewport.firstChild);
             }
 
             function updateNavigationLines() {
                 if (!navigationSvg) return;
-                
+
                 const existingLines = navigationSvg.querySelectorAll('.nav-link-path');
                 existingLines.forEach(line => line.remove());
-                
+
                 const existingLabels = navigationSvg.querySelectorAll('.nav-link-label');
                 existingLabels.forEach(label => label.remove());
-                
+
                 const biDirectionalPairs = new Set();
                 for (const link of navigationLinks) {
                     const reverseLink = navigationLinks.find(l => l.from === link.to && l.to === link.from);
@@ -590,25 +590,25 @@
                         biDirectionalPairs.add(pairKey);
                     }
                 }
-                
+
                 const processedPairs = new Set();
-                
+
                 for (const link of navigationLinks) {
                     const fromPos = pagePositions[link.from];
                     const toPos = pagePositions[link.to];
-                    
+
                     if (!fromPos || !toPos) continue;
-                    
+
                     const pairKey = [link.from, link.to].sort().join('|');
                     const isBiDirectional = biDirectionalPairs.has(pairKey);
                     const isFirstOfPair = !processedPairs.has(pairKey);
-                    
+
                     if (isBiDirectional) {
                         processedPairs.add(pairKey);
                     }
-                    
+
                     const path = calculateConnectionPath(fromPos, toPos, isBiDirectional, isFirstOfPair);
-                    
+
                     const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                     pathElement.setAttribute('class', 'nav-link-path');
                     pathElement.setAttribute('d', path.d);
@@ -618,21 +618,21 @@
                     pathElement.setAttribute('stroke-dasharray', '6,4');
                     pathElement.setAttribute('marker-end', 'url(#arrowhead)');
                     pathElement.setAttribute('opacity', '0.7');
-                    
+
                     navigationSvg.appendChild(pathElement);
-                    
+
                     if (link.label) {
                         const labelGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
                         labelGroup.setAttribute('class', 'nav-link-label');
-                        
+
                         const labelBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
                         const labelText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                        
+
                         let labelY = path.midY;
                         if (isBiDirectional) {
                             labelY = isFirstOfPair ? path.midY - 15 : path.midY + 15;
                         }
-                        
+
                         labelText.setAttribute('x', path.midX);
                         labelText.setAttribute('y', labelY);
                         labelText.setAttribute('text-anchor', 'middle');
@@ -641,7 +641,7 @@
                         labelText.setAttribute('font-size', '11');
                         labelText.setAttribute('font-weight', '500');
                         labelText.textContent = link.label;
-                        
+
                         const textLength = link.label.length * 6 + 12;
                         labelBg.setAttribute('x', path.midX - textLength / 2);
                         labelBg.setAttribute('y', labelY - 10);
@@ -652,7 +652,7 @@
                         labelBg.setAttribute('stroke', '#6366f1');
                         labelBg.setAttribute('stroke-width', '1');
                         labelBg.setAttribute('opacity', '0.9');
-                        
+
                         labelGroup.appendChild(labelBg);
                         labelGroup.appendChild(labelText);
                         navigationSvg.appendChild(labelGroup);
@@ -665,26 +665,26 @@
                 const fromCenterY = fromPos.y + fromPos.height / 2;
                 const toCenterX = toPos.x + toPos.width / 2;
                 const toCenterY = toPos.y + toPos.height / 2;
-                
+
                 const labelHeight = 30;
                 const fromTop = fromPos.y - labelHeight;
                 const fromBottom = fromPos.y + fromPos.height;
                 const fromLeft = fromPos.x;
                 const fromRight = fromPos.x + fromPos.width;
-                
+
                 const toTop = toPos.y - labelHeight;
                 const toBottom = toPos.y + toPos.height;
                 const toLeft = toPos.x;
                 const toRight = toPos.x + toPos.width;
-                
+
                 const dx = toCenterX - fromCenterX;
                 const dy = toCenterY - fromCenterY;
-                
+
                 let startX, startY, endX, endY;
                 const padding = 15;
-                
+
                 const biOffset = isBiDirectional ? (isFirstOfPair ? -20 : 20) : 0;
-                
+
                 if (Math.abs(dx) > Math.abs(dy)) {
                     if (dx > 0) {
                         startX = fromRight + padding;
@@ -710,10 +710,10 @@
                         endY = toBottom + padding;
                     }
                 }
-                
+
                 const midX = (startX + endX) / 2;
                 const midY = (startY + endY) / 2;
-                
+
                 let d;
                 if (Math.abs(dx) > Math.abs(dy) * 2 || Math.abs(dy) > Math.abs(dx) * 2) {
                     d = `M ${startX} ${startY} L ${endX} ${endY}`;
@@ -727,7 +727,7 @@
                         d = `M ${startX} ${startY} Q ${startX} ${ctrlY} ${midX} ${midY} Q ${endX} ${ctrlY} ${endX} ${endY}`;
                     }
                 }
-                
+
                 return { d, midX, midY };
             }
 
@@ -738,41 +738,41 @@
 
             function centerCanvasView() {
                 if (Object.keys(pagePositions).length === 0) return;
-                
+
                 let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                
+
                 Object.values(pagePositions).forEach(pos => {
                     if (pos.x < minX) minX = pos.x;
                     if (pos.y < minY) minY = pos.y;
                     if (pos.x + pos.width > maxX) maxX = pos.x + pos.width;
                     if (pos.y + pos.height > maxY) maxY = pos.y + pos.height;
                 });
-                
+
                 const contentWidth = maxX - minX;
                 const contentHeight = maxY - minY;
                 const contentCenterX = minX + contentWidth / 2;
                 const contentCenterY = minY + contentHeight / 2;
-                
+
                 const containerRect = canvasContainer.getBoundingClientRect();
                 const viewportWidth = containerRect.width;
                 const viewportHeight = containerRect.height;
                 const viewportCenterX = viewportWidth / 2;
                 const viewportCenterY = viewportHeight / 2;
-                
+
                 const padding = 60;
                 const availableWidth = viewportWidth - padding * 2;
                 const availableHeight = viewportHeight - padding * 2;
-                
+
                 const scaleX = availableWidth / contentWidth;
                 const scaleY = availableHeight / contentHeight;
                 let fitScale = Math.min(scaleX, scaleY);
-                
+
                 fitScale = Math.max(0.25, Math.min(2, fitScale));
-                
+
                 canvasState.scale = fitScale;
                 canvasState.offsetX = viewportCenterX - contentCenterX * canvasState.scale;
                 canvasState.offsetY = viewportCenterY - contentCenterY * canvasState.scale;
-                
+
                 updateCanvasTransform();
             }
 
@@ -780,17 +780,17 @@
                 const positions = {};
                 const gap = 180;
                 const labelHeight = 30;
-                
+
                 if (pages.length === 0) return positions;
 
                 const outgoingLinks = {};
                 const incomingLinks = {};
-                
+
                 pages.forEach(p => {
                     outgoingLinks[p.page_id] = [];
                     incomingLinks[p.page_id] = [];
                 });
-                
+
                 navLinks.forEach(link => {
                     if (outgoingLinks[link.from]) {
                         outgoingLinks[link.from].push(link.to);
@@ -802,11 +802,11 @@
 
                 let rootPage = null;
                 let maxOutgoing = -1;
-                
+
                 pages.forEach(p => {
                     const incoming = incomingLinks[p.page_id]?.length || 0;
                     const outgoing = outgoingLinks[p.page_id]?.length || 0;
-                    
+
                     if (incoming === 0 && outgoing > 0) {
                         if (outgoing > maxOutgoing) {
                             maxOutgoing = outgoing;
@@ -814,7 +814,7 @@
                         }
                     }
                 });
-                
+
                 if (!rootPage) {
                     pages.forEach(p => {
                         const outgoing = outgoingLinks[p.page_id]?.length || 0;
@@ -824,7 +824,7 @@
                         }
                     });
                 }
-                
+
                 if (!rootPage && pages.length > 0) {
                     rootPage = pages[0].page_id;
                 }
@@ -833,13 +833,13 @@
                 const visited = new Set();
                 const queue = [{ id: rootPage, level: 0 }];
                 visited.add(rootPage);
-                
+
                 while (queue.length > 0) {
                     const { id, level } = queue.shift();
-                    
+
                     if (!levels[level]) levels[level] = [];
                     levels[level].push(id);
-                    
+
                     const targets = outgoingLinks[id] || [];
                     targets.forEach(targetId => {
                         if (!visited.has(targetId)) {
@@ -848,7 +848,7 @@
                         }
                     });
                 }
-                
+
                 pages.forEach(p => {
                     if (!visited.has(p.page_id)) {
                         const lastLevel = Math.max(...Object.keys(levels).map(Number), 0);
@@ -873,10 +873,10 @@
 
                 const levelKeys = Object.keys(levels).map(Number).sort((a, b) => a - b);
                 let currentX = 0;
-                
+
                 levelKeys.forEach(levelNum => {
                     const pageIds = levels[levelNum];
-                    
+
                     let maxWidthInLevel = 0;
                     pageIds.forEach(pageId => {
                         const size = pageSizes[pageId];
@@ -884,16 +884,16 @@
                             maxWidthInLevel = size.displayWidth;
                         }
                     });
-                    
+
                     let totalHeight = 0;
                     pageIds.forEach((pageId, idx) => {
                         const size = pageSizes[pageId];
                         totalHeight += size.displayHeight + labelHeight;
                         if (idx < pageIds.length - 1) totalHeight += gap;
                     });
-                    
+
                     let currentY = -totalHeight / 2;
-                    
+
                     pageIds.forEach(pageId => {
                         const size = pageSizes[pageId];
                         positions[pageId] = {
@@ -906,7 +906,7 @@
                         };
                         currentY += size.displayHeight + labelHeight + gap;
                     });
-                    
+
                     currentX += maxWidthInLevel + gap * 2;
                 });
 
@@ -915,12 +915,12 @@
                     if (pos.x < minX) minX = pos.x;
                     if (pos.y < minY) minY = pos.y;
                 });
-                
+
                 Object.keys(positions).forEach(pageId => {
                     positions[pageId].x -= minX;
                     positions[pageId].y -= minY;
                 });
-                
+
                 return positions;
             }
 
@@ -930,45 +930,45 @@
                     if (!response.ok) {
                         throw new Error('structure.json not found');
                     }
-                    
+
                     const structure = await response.json();
                     const canvasLayout = structure.canvas_layout || {};
                     const pages = structure.pages || [];
                     const navLinks = structure.navigation?.links_between_pages || [];
-                    
+
                     if (pages.length === 0) {
                         showError('No pages found', 'The structure.json file contains no pages.');
                         return;
                     }
-                    
+
                     pagesPlaceholder.style.display = 'none';
                     pageCount.textContent = `${pages.length} page${pages.length > 1 ? 's' : ''}`;
 
                     const calculatedPositions = calculateAutoLayout(pages, canvasLayout, navLinks);
-                    
+
                     pages.forEach(page => {
                         const pageId = page.page_id;
                         const pageName = page.page_name || pageId;
                         const pos = calculatedPositions[pageId];
-                        
+
                         if (!pos) return;
-                        
+
                         pagesData[pageId] = {
                             page_name: pageName,
                             page_description: page.page_description || '',
                             width: pos.srcWidth,
                             height: pos.srcHeight
                         };
-                        
+
                         addPageToCanvas(pageId, pageName, pos);
                     });
-                    
+
                     if (navLinks.length > 0) {
                         setNavigationLinks(navLinks);
                     }
-                    
+
                     centerCanvasView();
-                    
+
                 } catch (error) {
                     console.error('Error loading structure:', error);
                     showError('Failed to load structure', 'Make sure structure.json exists in the same directory as this file.');
@@ -1012,17 +1012,17 @@
 
                 const iframeWrapper = document.createElement('div');
                 iframeWrapper.className = 'canvas-page-iframe-wrapper';
-                
+
                 const iframe = document.createElement('iframe');
                 iframe.className = 'canvas-page-iframe';
                 iframe.src = `pages/${pageId}.html`;
-                
+
                 const scale = displayWidth / srcWidth;
-                
+
                 iframe.style.width = `${srcWidth}px`;
                 iframe.style.height = `${srcHeight}px`;
                 iframe.style.transform = `scale(${scale})`;
-                
+
                 iframeWrapper.appendChild(iframe);
                 imageContainer.appendChild(iframeWrapper);
                 pageDiv.appendChild(imageContainer);
@@ -1076,18 +1076,18 @@
             function showHoverMenu(pageId, pageElement) {
                 activeHoverPageId = pageId;
                 const pageData = pagesData[pageId];
-                
+
                 hoverMenuTitle.textContent = pageData ? pageData.page_name : pageId;
                 hoverOpenPage.href = `pages/${pageId}.html`;
-                
+
                 quickModInput.style.display = 'none';
                 quickModTextarea.value = '';
-                
+
                 hoverQuickMod.onclick = () => {
                     quickModInput.style.display = 'block';
                     quickModTextarea.focus();
                 };
-                
+
                 quickModSubmit.onclick = () => {
                     const instruction = quickModTextarea.value.trim();
                     if (instruction) {
@@ -1098,15 +1098,15 @@
                     }
                     hideHoverMenu();
                 };
-                
+
                 const rect = pageElement.getBoundingClientRect();
                 const menuWidth = 200;
-                
+
                 let left = rect.left + (rect.width - menuWidth) / 2;
                 let top = rect.top - 10;
-                
+
                 left = Math.max(10, Math.min(window.innerWidth - menuWidth - 10, left));
-                
+
                 pageHoverMenu.style.left = `${left}px`;
                 pageHoverMenu.style.bottom = `${window.innerHeight - top}px`;
                 pageHoverMenu.style.top = 'auto';
