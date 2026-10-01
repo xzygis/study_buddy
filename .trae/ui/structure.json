@@ -1,0 +1,159 @@
+{
+  "pages": [
+    {
+      "page_id": "android_today",
+      "page_name": "Android 手机 - 今日计划",
+      "page_description": "展示当天已启用提醒的时间轴、系统权限状态和底部导航。",
+      "layout_type": "dashboard",
+      "sections": [
+        {
+          "name": "top_app_bar",
+          "type": "header",
+          "components": ["页面标题", "帮助按钮"],
+          "responsive_behavior": "stack"
+        },
+        {
+          "name": "date_summary",
+          "type": "content",
+          "components": ["日期摘要", "提醒数量"],
+          "responsive_behavior": "stack"
+        },
+        {
+          "name": "daily_timeline",
+          "type": "list",
+          "components": ["时间", "事项图标", "事项名称", "计划名称", "状态"],
+          "responsive_behavior": "scroll"
+        },
+        {
+          "name": "primary_navigation",
+          "type": "nav",
+          "components": ["今天", "计划"],
+          "responsive_behavior": "stack"
+        }
+      ],
+      "color_scheme": "light",
+      "primary_actions": ["查看今日安排", "切换到计划"]
+    },
+    {
+      "page_id": "android_plans",
+      "page_name": "Android 手机 - 我的计划",
+      "page_description": "管理多组学习计划，支持启停、编辑、复制和新建。",
+      "layout_type": "single_page",
+      "sections": [
+        {
+          "name": "top_app_bar",
+          "type": "header",
+          "components": ["页面标题", "新建计划按钮"],
+          "responsive_behavior": "stack"
+        },
+        {
+          "name": "plan_list",
+          "type": "list",
+          "components": ["计划名称", "重复规则", "提醒数量", "启用开关", "编辑与复制"],
+          "responsive_behavior": "scroll"
+        },
+        {
+          "name": "primary_navigation",
+          "type": "nav",
+          "components": ["今天", "计划"],
+          "responsive_behavior": "stack"
+        }
+      ],
+      "color_scheme": "light",
+      "primary_actions": ["新建计划", "启用计划", "编辑计划", "复制计划"]
+    },
+    {
+      "page_id": "android_editor",
+      "page_name": "Android 手机 - 编辑计划",
+      "page_description": "编辑计划名称、整组重复星期和多个具名提醒时间。",
+      "layout_type": "form",
+      "sections": [
+        {
+          "name": "editor_app_bar",
+          "type": "header",
+          "components": ["返回按钮", "标题", "保存按钮"],
+          "responsive_behavior": "stack"
+        },
+        {
+          "name": "plan_form",
+          "type": "form",
+          "components": ["计划名称", "快捷星期选择", "星期按钮", "提醒编辑行", "添加提醒"],
+          "responsive_behavior": "scroll"
+        }
+      ],
+      "color_scheme": "light",
+      "primary_actions": ["保存计划", "添加提醒", "删除提醒"]
+    },
+    {
+      "page_id": "android_tablet",
+      "page_name": "Android 平板 - 双栏计划",
+      "page_description": "平板双栏布局，左侧选择和管理计划，右侧查看今日安排。",
+      "layout_type": "dashboard",
+      "sections": [
+        {
+          "name": "navigation_rail",
+          "type": "nav",
+          "components": ["今天", "计划", "新建计划"],
+          "responsive_behavior": "hide"
+        },
+        {
+          "name": "plan_sidebar",
+          "type": "sidebar",
+          "components": ["计划列表", "启用状态"],
+          "responsive_behavior": "collapse"
+        },
+        {
+          "name": "today_detail",
+          "type": "content",
+          "components": ["日期摘要", "今日时间轴"],
+          "responsive_behavior": "scroll"
+        }
+      ],
+      "color_scheme": "light",
+      "primary_actions": ["选择计划", "启用计划", "新建计划"]
+    }
+  ],
+  "navigation": {
+    "type": "bottom_tabs",
+    "links_between_pages": [
+      {
+        "from": "android_today",
+        "to": "android_plans",
+        "label": "计划"
+      },
+      {
+        "from": "android_plans",
+        "to": "android_today",
+        "label": "今天"
+      },
+      {
+        "from": "android_plans",
+        "to": "android_editor",
+        "label": "编辑"
+      },
+      {
+        "from": "android_tablet",
+        "to": "android_editor",
+        "label": "编辑"
+      }
+    ]
+  },
+  "canvas_layout": {
+    "android_today": {
+      "width": 412,
+      "height": 915
+    },
+    "android_plans": {
+      "width": 412,
+      "height": 915
+    },
+    "android_editor": {
+      "width": 412,
+      "height": 915
+    },
+    "android_tablet": {
+      "width": 800,
+      "height": 600
+    }
+  }
+}

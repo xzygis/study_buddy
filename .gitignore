@@ -4,3 +4,11 @@ DerivedData/
 *.xcresult/
 *.xcuserstate
 **/xcuserdata/
+
+.gradle/
+local.properties
+android/build/
+android/.idea/
+*.iml
+*.jks
+*.keystore
