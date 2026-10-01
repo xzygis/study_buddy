@@ -1,121 +1,290 @@
-# 学习闹钟（iOS / iPadOS）
+# StudyAlarm for iOS and iPadOS
 
-原生 SwiftUI + AlarmKit 学习计划闹钟，最低支持 iOS / iPadOS 26。项目完全离线运行，不使用账号、服务器、网络请求、后台轮询或保活。
+StudyAlarm 是一个使用 SwiftUI 与 AlarmKit 构建的本地学习计划闹钟。用户可以将学习、休息和生活事项组织成按星期重复的计划，再将整组提醒交给系统调度。
 
-## 打开并运行
+应用不依赖账号、服务器、网络请求、后台轮询或保活机制，最低支持 iOS / iPadOS 26。
 
-环境要求：
+## 功能范围
 
-- Xcode 26 或更高版本
-- iOS 26+ iPhone，或 iPadOS 26+ iPad
-- 用于真机签名的 Apple Developer Team
+- 创建、编辑、复制和删除多组计划
+- 为整组计划设置重复星期
+- 为每组计划配置多个具名提醒及开始时间
+- 整组启用或停用 AlarmKit 闹钟
+- 编辑已启用计划后自动替换旧闹钟
+- 启动、回到前台及系统状态变化时重新核对闹钟
+- 在“今日”中展示已启用且系统核对成功的当天安排
+- 检测不同启用计划之间的同日、同分钟冲突
+- 原生适配 iPhone 与 iPad
 
-步骤：
+首次安装会生成“工作日（不含周二）”“周二”“周末”三组普通计划。它们与用户新建的计划完全一致，均可直接编辑、复制、启用或删除。
 
-1. 用 Xcode 打开 `StudyAlarm.xcodeproj`。
-2. 选择 `StudyAlarm` target，进入 **Signing & Capabilities**。
-3. 选择自己的 Team；如 Bundle ID 冲突，将 `com.xzygis.studybuddy.alarm` 改为自己的唯一标识。
-4. 连接 iPhone 或 iPad，选择真机后运行。
-5. 直接编辑或启用默认计划，也可以新建/复制计划；第一次启用时允许系统闹钟权限。
+## 技术设计
 
-权限被拒绝后，计划会明确显示未生效。可从 App 中点击“打开系统设置”，重新允许后返回并点击“重试启用”。
-
-## 实现说明
-
-- App 使用“今日 / 计划”两个标签，不提供账号、登录或个人中心。
-- “今日”显示所有已启用且系统核对成功的当天安排；“计划”集中管理全部计划。
-- 点击计划可查看详情；点击计划卡片中的“编辑”会进入该计划详情页并直接编辑，保存后仍停留在详情页。
-- 首次安装自动生成“工作日（不含周二）”“周二”“周末”三个普通计划，包含图片里的学习、休息、用餐、活动、洗澡和睡觉事项，可直接编辑或启用。
-- 所有计划都可复制；复制件使用全新计划/提醒 ID，且不会继承启用状态或 AlarmKit ID。
-- 每组计划支持名称、多个提醒和整组重复星期；“每天”保存为七个星期日。
-- 启用时先持久化全部 AlarmKit ID，再逐项创建系统闹钟。
-- 只有整组创建并回读核对成功后，界面才显示“已启用”。
-- 部分创建失败时回滚本次整组；清理失败时保留 ID 和风险提示，供后续重试。
-- 编辑已启用计划时先清理旧闹钟，再提交整组新规则。
-- 关闭或删除计划时先核对并清理整组闹钟；删除失败时保留待清理记录。
-- App 启动、返回前台、系统闹钟变化或权限变化时重新核对状态。
-- 数据存储在 Application Support 的原子 JSON 文件中，并排除云备份。
-- AlarmKit 闹钟属于本 App，不要求显示在苹果“时钟”App 中。
-- 仅使用 alert 型闹钟，不包含倒计时、贪睡、休息循环、完成打卡或 Widget Extension。
-
-## GitHub 自动发布
-
-工作流参考 SilentGuard 的发布方式：
-
-- PR 合并到 `main` 后自动递增补丁版本，例如 `v1.0.0` 到 `v1.0.1`。
-- 使用 `macos-26` 和 Xcode 26 运行测试、归档并导出 `release-testing` IPA。
-- 创建同版本 GitHub Release，并附加一个同时支持 iPhone 和 iPad 的 IPA。
-
-仓库需要配置以下 GitHub Actions Secrets：
-
-| Secret | 内容 |
+| 模块 | 职责 |
 | --- | --- |
-| `APPLE_TEAM_ID` | Apple Developer Team ID |
-| `IOS_DISTRIBUTION_CERTIFICATE_BASE64` | Apple Distribution `.p12` 文件的 Base64 |
-| `IOS_DISTRIBUTION_CERTIFICATE_PASSWORD` | 导出 `.p12` 时设置的密码 |
-| `IOS_PROVISIONING_PROFILE_BASE64` | Bundle ID `com.xzygis.studybuddy.alarm` 对应的 Ad Hoc 描述文件 Base64 |
+| `StudyAlarmApp.swift` | App 生命周期、标签导航和前台状态核对 |
+| `Models.swift` | 计划、提醒、星期规则及 AlarmKit 绑定模型 |
+| `PlanStore.swift` | 计划 CRUD、整组同步、状态核对与失败回滚 |
+| `FilePlanPersistence.swift` | Application Support 下的原子 JSON 持久化 |
+| `AlarmKitService.swift` | AlarmKit 授权、创建、取消和系统状态读取 |
+| `DashboardViews.swift` | 今日时间轴与冲突入口 |
+| `PlanLibraryView.swift` | 计划列表与详情导航 |
+| `PlanEditorView.swift` | 新建计划及详情页编辑 |
 
-可在本机生成 Base64 后直接写入 GitHub Secrets，不要把证书、描述文件或密码放进仓库：
+### 一致性策略
+
+1. 创建闹钟前先持久化全部 AlarmKit ID，避免进程中断后失去关联。
+2. 只有整组闹钟创建并回读核对成功，计划才显示“已启用”。
+3. 部分创建失败时回滚本次整组操作。
+4. 编辑已启用计划时，先清理旧闹钟，再提交新规则。
+5. 关闭或删除计划时先取消系统闹钟；清理失败则保留记录并提示重试。
+6. 发现本 App 遗留但未关联的闹钟时尝试清理，并明确暴露失败状态。
+
+AlarmKit 闹钟由本 App 管理，不要求显示在系统“时钟”App 的闹钟列表中。
+
+## 环境要求
+
+- macOS 26 或兼容版本
+- Xcode 26+
+- iOS 26+ Simulator Runtime
+- 真机调试时需要 Apple Developer Team
+
+工程配置：
+
+- Xcode Project：`StudyAlarm.xcodeproj`
+- Scheme：`StudyAlarm`
+- Bundle ID：`com.xzygis.studybuddy.alarm`
+- Deployment Target：iOS 26.0
+- Device Family：iPhone、iPad
+
+## 使用 Xcode 运行
+
+1. 打开工程：
+
+   ```bash
+   open ios/StudyAlarm.xcodeproj
+   ```
+
+2. 在 Xcode 顶部选择 `StudyAlarm` Scheme。
+3. 选择 iOS 26+ 的 iPhone 或 iPad 模拟器。
+4. 按 `Command-R` 构建并运行。
+5. 真机运行时，在 Target 的 Signing & Capabilities 中选择 Team。若 Bundle ID 已被占用，请改成自己账号下的唯一标识。
+
+## 手动启动模拟器验证
+
+以下命令均从仓库根目录执行。这套流程不依赖 Xcode 的 Run 按钮，可单独验证“编译、启动模拟器、安装、启动和截图”链路。
+
+### 1. 确认可用设备
 
 ```bash
-base64 < ~/path/to/distribution.p12 | pbcopy
-base64 < ~/path/to/StudyAlarm.mobileprovision | pbcopy
+xcrun simctl list devices available
 ```
 
-Ad Hoc IPA 只能安装到描述文件中已登记的设备。工作流定义见
-[`../.github/workflows/release-ios.yml`](../.github/workflows/release-ios.yml)。
+从输出中复制目标设备的 UDID：
+
+```bash
+export IPHONE_UDID="<iPhone 模拟器 UDID>"
+export IPAD_UDID="<iPad 模拟器 UDID>"
+```
+
+本项目已使用 iPhone 17 Pro 和 iPad Pro 13-inch（M5）、iOS 26.5 进行验证。
+
+### 2. 构建模拟器 App
+
+```bash
+export DERIVED_DATA="$PWD/ios/.sim-validation"
+
+xcodebuild \
+  -project ios/StudyAlarm.xcodeproj \
+  -scheme StudyAlarm \
+  -configuration Debug \
+  -sdk iphonesimulator \
+  -destination "generic/platform=iOS Simulator" \
+  -derivedDataPath "$DERIVED_DATA" \
+  CODE_SIGNING_ALLOWED=NO \
+  COMPILER_INDEX_STORE_ENABLE=NO \
+  build
+
+export APP_PATH="$DERIVED_DATA/Build/Products/Debug-iphonesimulator/StudyAlarm.app"
+test -d "$APP_PATH"
+```
+
+### 3. 启动、安装并运行
+
+iPhone：
+
+```bash
+xcrun simctl boot "$IPHONE_UDID" 2>/dev/null || true
+xcrun simctl bootstatus "$IPHONE_UDID" -b
+xcrun simctl install "$IPHONE_UDID" "$APP_PATH"
+xcrun simctl launch --terminate-running-process \
+  "$IPHONE_UDID" com.xzygis.studybuddy.alarm
+```
+
+iPad：
+
+```bash
+xcrun simctl boot "$IPAD_UDID" 2>/dev/null || true
+xcrun simctl bootstatus "$IPAD_UDID" -b
+xcrun simctl install "$IPAD_UDID" "$APP_PATH"
+xcrun simctl launch --terminate-running-process \
+  "$IPAD_UDID" com.xzygis.studybuddy.alarm
+```
+
+打开 Simulator 窗口：
+
+```bash
+open -a Simulator
+```
+
+### 4. 保存验证截图
+
+```bash
+xcrun simctl io "$IPHONE_UDID" screenshot /tmp/studyalarm-iphone.png
+xcrun simctl io "$IPAD_UDID" screenshot /tmp/studyalarm-ipad.png
+open /tmp/studyalarm-iphone.png
+open /tmp/studyalarm-ipad.png
+```
+
+仓库中的当前基准截图：
+
+- [iPhone 17 Pro](Screenshots/iphone-home.png)
+- [iPad Pro 13-inch（M5）](Screenshots/ipad-home.png)
+
+### 5. 手动检查清单
+
+1. 首屏只有“今日”和“计划”两个入口，不出现登录、账户或模板入口。
+2. “今日”只显示已启用且系统核对成功的当天提醒。
+3. “计划”展示本机已有计划，并可新建、复制和启停。
+4. 点击计划名称进入只读详情。
+5. 点击计划卡片中的“编辑”进入详情页编辑状态。
+6. 修改名称、星期或提醒时间并保存后，仍停留在该计划详情页。
+7. 长按或左滑可以删除单个提醒。
+8. 删除计划后，该计划从列表消失。
+9. iPhone 和 iPad 上不存在文字截断、控件重叠或横向溢出。
+
+模拟器适合验证数据操作、导航和布局，但不能替代 AlarmKit 响铃、锁屏、静音模式及专注模式的真机测试。
+
+### 常见问题
+
+未安装 iOS Runtime：
+
+```bash
+xcodebuild -downloadPlatform iOS -architectureVariant arm64
+```
+
+CoreSimulator 状态异常：
+
+```bash
+killall -9 com.apple.CoreSimulator.CoreSimulatorService
+```
+
+重新启动 Xcode 和 Simulator 后再次执行 `simctl bootstatus`。如果只需重置本 App，可执行以下命令；该操作会删除模拟器中的全部 StudyAlarm 本地数据：
+
+```bash
+xcrun simctl uninstall "$IPHONE_UDID" com.xzygis.studybuddy.alarm
+```
 
 ## 自动验证
 
-在仓库根目录运行：
+执行：
 
 ```bash
 bash ios/scripts/verify.sh
 ```
 
-脚本执行：
+脚本包含：
 
-1. 26 项核心逻辑测试。
-2. 面向 iPhone / iPad 的无签名 iOS 26 编译。
+1. Swift Package 核心逻辑测试。
+2. 面向 iPhone / iPad 的无签名设备构建。
 
-当前已通过：
+当前验证结果：
 
-- 26 项测试，0 失败。
-- `arm64-apple-ios26.0` 无签名构建成功。
-- iOS 26.5 Simulator 构建、安装和启动成功。
-- iPhone 17 Pro 首屏渲染成功：[截图](Screenshots/iphone-home.png)。
-- iPad Pro 13-inch（M5）自适应首屏渲染成功：[截图](Screenshots/ipad-home.png)。
-- 产物 `UIDeviceFamily` 同时包含 iPhone（1）和 iPad（2）。
-- `NSAlarmKitUsageDescription` 已写入最终 Info.plist。
+- 26 项核心测试通过，0 失败。
+- iOS Simulator Debug 构建通过。
+- `arm64-apple-ios26.0` Release 无签名设备构建通过。
+- iPhone 17 Pro 和 iPad Pro 13-inch（M5）安装、启动及首屏截图通过。
+- 最终产物 `UIDeviceFamily` 包含 iPhone（1）和 iPad（2）。
+- 最终 Info.plist 包含 `NSAlarmKitUsageDescription`。
+- `StudyAlarmUITests` 目标编译通过。
 
-自动测试覆盖新增、编辑、删除、重复星期、每天、跨午夜时刻、整组启停、拒绝授权、部分失败回滚、取消失败、状态不一致、孤立闹钟清理、持久化失败和重启恢复。
+当前机器的 Xcode `DTServiceHub/lockdown` 测试通道无法稳定连接模拟器，因此没有将 XCUITest 自动点击执行标记为通过。
 
-工程包含 `StudyAlarmUITests` 交互用例，用于验证复制现有计划、改名保存和删除。当前机器能编译并签名该测试包，但 Xcode 的 `DTServiceHub/lockdown` 无法连接模拟器，因此没有将该用例标记为执行通过。
+## GitHub Actions
+
+### 持续集成
+
+`.github/workflows/ci.yml` 在提交到 `main` 或向 `main` 发起 Pull Request 时执行核心测试和 Simulator 构建。
+
+### IPA 发布
+
+`.github/workflows/release-ios.yml` 提供自动版本管理、签名归档和 GitHub Release 发布：
+
+1. PR 合并到 `main` 或从 Actions 页面手动运行时触发。
+2. 预检三项签名 Secrets；自动触发且未配置时安全跳过发布。
+3. 根据最新 Git Tag 自动递增补丁版本；首次发布为 `v1.0.0`。
+4. 运行核心测试。
+5. 导入 Apple Distribution 证书和 Ad Hoc 描述文件。
+6. 归档并导出 `release-testing` 通用 IPA。
+7. 创建 GitHub Release 并上传 `study-alarm-<version>.ipa`。
+
+需要配置以下 GitHub Actions Secrets：
+
+| Secret | 内容 |
+| --- | --- |
+| `IOS_DISTRIBUTION_CERTIFICATE_BASE64` | Apple Distribution `.p12` 文件的 Base64 |
+| `IOS_DISTRIBUTION_CERTIFICATE_PASSWORD` | `.p12` 导出密码 |
+| `IOS_PROVISIONING_PROFILE_BASE64` | Bundle ID 对应的 Ad Hoc 描述文件 Base64 |
+
+Team ID 会从 Provisioning Profile 自动读取并校验，无需单独配置。
+
+准备签名材料：
+
+1. 在 Apple Developer 后台创建 Apple Distribution 证书。
+2. 从钥匙串访问导出包含私钥的 `.p12`，并设置独立密码。
+3. 为 `com.xzygis.studybuddy.alarm` 创建 Ad Hoc Provisioning Profile，包含需要安装 IPA 的设备。
+4. 下载 `.mobileprovision` 文件。
+
+证书和描述文件应保存在用户目录，不要写入项目。可以使用 GitHub CLI 直接创建 Secrets：
+
+```bash
+base64 < ~/path/to/distribution.p12 |
+  gh secret set IOS_DISTRIBUTION_CERTIFICATE_BASE64 \
+    --repo xzygis/study_buddy
+
+gh secret set IOS_DISTRIBUTION_CERTIFICATE_PASSWORD \
+  --repo xzygis/study_buddy
+
+base64 < ~/path/to/StudyAlarm.mobileprovision |
+  gh secret set IOS_PROVISIONING_PROFILE_BASE64 \
+    --repo xzygis/study_buddy
+```
+
+确认三项配置均已创建：
+
+```bash
+gh secret list --repo xzygis/study_buddy
+```
+
+Secret 值不会被命令回显。配置完成后，可从 Actions 页面手动运行 **Build & Release IPA**；缺少签名配置时，手动运行会立即列出缺失项并退出。Ad Hoc IPA 只能安装到描述文件中已登记的设备。
 
 ## 真机验收
 
-模拟器结果不能替代以下测试。每项应分别在 iPhone 和 iPad 上验证，并将提醒设置在未来 2 至 3 分钟：
+将提醒设置在未来 2 至 3 分钟，分别在 iPhone 和 iPad 上验证：
 
-| 场景 | 操作与预期 | iPhone | iPad |
+| 场景 | 预期 | iPhone | iPad |
 | --- | --- | --- | --- |
-| 首次授权 | 首次启用出现权限框；允许后整组显示“已启用” | 未实测 | 未实测 |
-| 拒绝授权 | 拒绝后显示未生效；系统设置重新允许后可重试 | 未实测 | 未实测 |
-| 新增与多提醒 | 同组多个时刻分别按名称响铃 | 未实测 | 未实测 |
-| 重复星期 | 今天被选中时响铃；未选中时不响铃 | 未实测 | 未实测 |
-| 每天 | 七天重复规则均已提交并按日响铃 | 未实测 | 未实测 |
-| 编辑已启用计划 | 旧名称/时间不再响，新规则按时响铃 | 未实测 | 未实测 |
-| 关闭计划 | 整组旧提醒不再响铃 | 未实测 | 未实测 |
-| 删除计划 | 删除后整组旧提醒不再响铃 | 未实测 | 未实测 |
-| 锁屏 | 锁屏状态正常出现系统闹钟界面和声音 | 未实测 | 未实测 |
-| 切到后台 | App 在后台时正常响铃 | 未实测 | 未实测 |
-| 强制退出 App | 从多任务界面退出后正常响铃 | 未实测 | 未实测 |
-| 断网 | 飞行模式或断网后正常响铃 | 未实测 | 未实测 |
+| 首次授权 | 出现 AlarmKit 权限请求，允许后整组显示“已启用” | 未实测 | 未实测 |
+| 拒绝授权 | 明确显示未生效，可从系统设置恢复权限后重试 | 未实测 | 未实测 |
+| 多提醒 | 同一计划的多个提醒分别按名称响铃 | 未实测 | 未实测 |
+| 重复星期 | 只在选中的星期响铃 | 未实测 | 未实测 |
+| 编辑已启用计划 | 旧规则停止，新名称和时间生效 | 未实测 | 未实测 |
+| 关闭计划 | 整组提醒停止 | 未实测 | 未实测 |
+| 删除计划 | 计划及其系统闹钟全部清理 | 未实测 | 未实测 |
+| 锁屏 | 锁屏状态出现系统闹钟界面并响铃 | 未实测 | 未实测 |
+| 后台与强制退出 | App 不在前台时仍由系统按时响铃 | 未实测 | 未实测 |
+| 断网 | 无网络时仍正常响铃 | 未实测 | 未实测 |
 | 设备重启 | 重启后不打开 App，原计划仍正常响铃 | 未实测 | 未实测 |
-| 静音模式 | 开启静音后记录实际声音、震动与系统界面 | 未实测 | 未实测 |
-| 专注模式 | 开启专注模式后记录实际声音、震动与系统界面 | 未实测 | 未实测 |
+| 静音与专注模式 | 记录实际声音、震动和系统界面表现 | 未实测 | 未实测 |
 
-Apple AlarmKit 文档说明系统闹钟在必要时会突破静音与专注模式，但本项目没有连接真机，因此未将该文档结论标记为设备实测结果。设备关机期间无法响铃。
-
-## 当前验证环境限制
-
-CoreSimulator 1051.55 与 iOS 26.5 Runtime 已正常安装；iPhone 和 iPad 模拟器均可启动 App 并完成首屏视觉检查。当前 Xcode 的 `DTServiceHub/lockdown` 测试通道不可用，因此自动点击式 XCUITest 尚未执行。未连接真机，所以 AlarmKit 授权、系统响铃、锁屏、后台、退出 App、断网、重启、静音和专注模式仍需按上表真机验收。
+设备关机期间无法响铃。模拟器验证结果不得代替本表中的真机结论。
