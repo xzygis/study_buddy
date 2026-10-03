@@ -58,7 +58,6 @@ class AlarmRingingService : Service() {
         if (bindingId != currentBindingId) {
             currentBindingId = bindingId
             acquireWakeLock()
-            launchAlarmScreen(bindingId, title, resolvedOccurrenceId)
             if (startAlarmSound(ringtoneUri, resolvedOccurrenceId)) {
                 diagnostics.recordAudio(resolvedOccurrenceId, System.currentTimeMillis())
             } else {
@@ -92,20 +91,6 @@ class AlarmRingingService : Service() {
                 0
             },
         )
-    }
-
-    private fun launchAlarmScreen(bindingId: String, title: String, occurrenceId: String) {
-        runCatching {
-            startActivity(
-                AlarmActivity.intent(
-                    context = this,
-                    bindingId = bindingId,
-                    title = title,
-                    notificationId = AlarmNotifier.notificationId(bindingId),
-                    occurrenceId = occurrenceId,
-                ),
-            )
-        }
     }
 
     private fun acquireWakeLock() {

@@ -346,8 +346,8 @@ private fun TodayScreen(
         if (!canUseFullScreenIntent) {
             item {
                 PermissionBanner(
-                    text = "全屏提醒未开启，锁屏时只显示通知",
-                    actionLabel = "全屏设置",
+                    text = "锁屏提醒权限或通知级别不足，无法直接操作闹钟",
+                    actionLabel = "提醒设置",
                     onClick = onOpenFullScreenSettings,
                 )
             }

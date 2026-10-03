@@ -16,7 +16,7 @@
 
 ## 闹钟机制
 
-每个提醒使用 `AlarmManager.setAlarmClock` 提交下一次精确触发。到点后由 `AlarmReceiver` 立即启动前台 `AlarmRingingService`；Service 持有 WakeLock、循环播放计划选择的铃声和震动，并通过全屏闹钟通知拉起 `AlarmActivity`。自定义铃声无法读取时会自动回退系统默认闹钟铃声。Receiver 同时提交下一周的同项提醒。
+每个提醒使用 `AlarmManager.setAlarmClock` 提交下一次精确触发。到点后由 `AlarmReceiver` 在系统授予的后台启动窗口内直接拉起锁屏闹钟页，并立即启动前台 `AlarmRingingService`；Service 持有 WakeLock、循环播放计划选择的铃声和震动，全屏闹钟通知作为页面启动兜底。自定义铃声无法读取时会自动回退系统默认闹钟铃声。Receiver 同时提交下一周的同项提醒。
 
 应用还会在以下事件后重建全部已启用闹钟：
 
@@ -38,7 +38,7 @@
 
 每次闹钟调度都会生成独立触发实例，并依次记录 `scheduledAt`、`triggerAt`、`receiverAt`、`serviceAt`、`audioAt`、`screenAt` 或 `error`。日志仅保存在本机，最多保留最近 200 条。
 
-响铃服务会主动尝试展示全屏闹钟页面，并保留系统全屏通知作为后台限制下的兜底。页面使用 `showWhenLocked` 和 `turnScreenOn` 覆盖锁屏，不会主动解锁设备；用户可直接查看提醒内容并停止闹钟。
+锁屏或息屏状态下，闹钟广播会直接展示全屏闹钟页面；系统全屏通知负责兜底。页面使用 `showWhenLocked` 和 `turnScreenOn` 覆盖锁屏，不会解除密码或进入应用主界面；用户可直接查看提醒内容并停止闹钟。
 
 系统设置中的“强行停止”会按 Android 安全模型清空应用闹钟，任何第三方 App 都无法绕过；重新打开 StudyBuddy 后会重新核对并安装闹钟。
 

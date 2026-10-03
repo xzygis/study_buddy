@@ -1,7 +1,6 @@
 package com.xzygis.studybuddy
 
 import android.Manifest
-import android.app.NotificationManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -17,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import com.xzygis.studybuddy.alarm.AlarmNotifier
 import com.xzygis.studybuddy.alarm.OemAutostartSettings
 import com.xzygis.studybuddy.ui.StudyBuddyApp
 import com.xzygis.studybuddy.ui.StudyBuddyTheme
@@ -81,15 +81,8 @@ class MainActivity : ComponentActivity() {
                             }
                     },
                     onOpenFullScreenSettings = {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                            pendingSettings = PendingSettings.FULL_SCREEN
-                            settingsPermission.launch(
-                                Intent(
-                                    Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
-                                    Uri.parse("package:$packageName"),
-                                ),
-                            )
-                        }
+                        pendingSettings = PendingSettings.FULL_SCREEN
+                        settingsPermission.launch(AlarmNotifier.fullScreenSettingsIntent(this))
                     },
                     onOpenBatterySettings = ::openBatterySettings,
                     onOpenAutostartSettings = ::openAutostartSettings,
@@ -122,14 +115,9 @@ class MainActivity : ComponentActivity() {
             settingsPermission.launch(it)
             return
         }
-        if (!canUseFullScreenIntent() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        if (!canUseFullScreenIntent()) {
             pendingSettings = PendingSettings.FULL_SCREEN
-            settingsPermission.launch(
-                Intent(
-                    Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
-                    Uri.parse("package:$packageName"),
-                ),
-            )
+            settingsPermission.launch(AlarmNotifier.fullScreenSettingsIntent(this))
             return
         }
         if (!isIgnoringBatteryOptimizations()) {
@@ -164,9 +152,7 @@ class MainActivity : ComponentActivity() {
                 Manifest.permission.POST_NOTIFICATIONS,
             ) == PackageManager.PERMISSION_GRANTED
 
-    private fun canUseFullScreenIntent(): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE ||
-            getSystemService(NotificationManager::class.java).canUseFullScreenIntent()
+    private fun canUseFullScreenIntent(): Boolean = AlarmNotifier.canShowFullScreen(this)
 
     private fun isIgnoringBatteryOptimizations(): Boolean =
         getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(packageName) == true

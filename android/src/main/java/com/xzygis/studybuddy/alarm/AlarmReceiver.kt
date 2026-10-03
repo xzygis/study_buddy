@@ -34,6 +34,16 @@ class AlarmReceiver : BroadcastReceiver() {
         val binding = decodeBinding(intent, bindingId, title)
 
         runCatching {
+            AlarmScreenLauncher.launchIfLocked(
+                context = context,
+                bindingId = bindingId,
+                title = title,
+                occurrenceId = occurrenceId,
+            )
+        }.onFailure {
+            application.alarmDiagnostics.recordError(occurrenceId, "launch_screen", it)
+        }
+        runCatching {
             AlarmRingingService.start(
                 context = context,
                 planId = planId,
