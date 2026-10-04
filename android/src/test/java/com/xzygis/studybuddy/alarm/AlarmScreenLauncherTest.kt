@@ -34,4 +34,26 @@ class AlarmScreenLauncherTest {
             ),
         )
     }
+
+    @Test
+    fun launchesDirectlyOnlyForRelevantOemWithOverlayPermission() {
+        assertTrue(
+            AlarmScreenLauncher.shouldLaunchDirectly(
+                isOemRelevant = true,
+                canDrawOverlays = true,
+            ),
+        )
+        assertFalse(
+            AlarmScreenLauncher.shouldLaunchDirectly(
+                isOemRelevant = true,
+                canDrawOverlays = false,
+            ),
+        )
+        assertFalse(
+            AlarmScreenLauncher.shouldLaunchDirectly(
+                isOemRelevant = false,
+                canDrawOverlays = true,
+            ),
+        )
+    }
 }

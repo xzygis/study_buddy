@@ -18,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import com.xzygis.studybuddy.alarm.AlarmNotifier
 import com.xzygis.studybuddy.alarm.OemAutostartSettings
+import com.xzygis.studybuddy.alarm.OemLockScreenSettings
 import com.xzygis.studybuddy.ui.StudyBuddyApp
 import com.xzygis.studybuddy.ui.StudyBuddyTheme
 
@@ -46,6 +47,10 @@ class MainActivity : ComponentActivity() {
         val granted = when (pendingSettings) {
             PendingSettings.EXACT_ALARM -> applicationContainer.alarmScheduler.canScheduleExactAlarms()
             PendingSettings.FULL_SCREEN -> canUseFullScreenIntent()
+            PendingSettings.OVERLAY -> OemLockScreenSettings.canDrawOverlays(this)
+            PendingSettings.OEM_POPUP ->
+                OemLockScreenSettings.popupPermissionState(this) !=
+                    OemLockScreenSettings.PermissionState.DENIED
             PendingSettings.BATTERY -> true
             PendingSettings.AUTOSTART -> true
             null -> false
@@ -66,6 +71,8 @@ class MainActivity : ComponentActivity() {
                     canUseFullScreenIntent = canUseFullScreenIntent(),
                     isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations(),
                     needsAutostartSetup = OemAutostartSettings.isRelevant(),
+                    needsOemLockScreenSetup = OemLockScreenSettings.isRelevant(),
+                    hasOemLockScreenAccess = hasOemLockScreenAccess(),
                     onEnablePlan = ::beginEnableFlow,
                     onOpenNotificationSettings = {
                         startActivity(
@@ -84,6 +91,7 @@ class MainActivity : ComponentActivity() {
                         pendingSettings = PendingSettings.FULL_SCREEN
                         settingsPermission.launch(AlarmNotifier.fullScreenSettingsIntent(this))
                     },
+                    onOpenOemLockScreenSettings = ::openOemLockScreenSettings,
                     onOpenBatterySettings = ::openBatterySettings,
                     onOpenAutostartSettings = ::openAutostartSettings,
                 )
@@ -120,6 +128,29 @@ class MainActivity : ComponentActivity() {
             settingsPermission.launch(AlarmNotifier.fullScreenSettingsIntent(this))
             return
         }
+        if (
+            OemLockScreenSettings.isRelevant() &&
+            !OemLockScreenSettings.canDrawOverlays(this)
+        ) {
+            pendingSettings = PendingSettings.OVERLAY
+            settingsPermission.launch(OemLockScreenSettings.overlaySettingsIntent(this))
+            return
+        }
+        if (OemLockScreenSettings.isRelevant()) {
+            val popupState = OemLockScreenSettings.popupPermissionState(this)
+            if (
+                popupState == OemLockScreenSettings.PermissionState.DENIED ||
+                popupState == OemLockScreenSettings.PermissionState.UNKNOWN &&
+                !hasPromptedOemLockScreen()
+            ) {
+                if (popupState == OemLockScreenSettings.PermissionState.UNKNOWN) {
+                    markOemLockScreenPrompted()
+                }
+                pendingSettings = PendingSettings.OEM_POPUP
+                settingsPermission.launch(OemLockScreenSettings.popupSettingsIntent(this))
+                return
+            }
+        }
         if (!isIgnoringBatteryOptimizations()) {
             pendingSettings = PendingSettings.BATTERY
             runCatching {
@@ -154,8 +185,35 @@ class MainActivity : ComponentActivity() {
 
     private fun canUseFullScreenIntent(): Boolean = AlarmNotifier.canShowFullScreen(this)
 
+    private fun hasOemLockScreenAccess(): Boolean {
+        if (!OemLockScreenSettings.isRelevant()) return true
+        if (!OemLockScreenSettings.canDrawOverlays(this)) return false
+        return when (OemLockScreenSettings.popupPermissionState(this)) {
+            OemLockScreenSettings.PermissionState.GRANTED -> true
+            OemLockScreenSettings.PermissionState.DENIED -> false
+            OemLockScreenSettings.PermissionState.UNKNOWN -> hasPromptedOemLockScreen()
+        }
+    }
+
     private fun isIgnoringBatteryOptimizations(): Boolean =
         getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(packageName) == true
+
+    private fun openOemLockScreenSettings() {
+        val intent = if (!OemLockScreenSettings.canDrawOverlays(this)) {
+            OemLockScreenSettings.overlaySettingsIntent(this)
+        } else {
+            OemLockScreenSettings.popupSettingsIntent(this)
+        }
+        runCatching { startActivity(intent) }
+            .onFailure {
+                startActivity(
+                    Intent(
+                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:$packageName"),
+                    ),
+                )
+            }
+    }
 
     private fun openBatterySettings() {
         val intent = if (isIgnoringBatteryOptimizations()) {
@@ -191,9 +249,26 @@ class MainActivity : ComponentActivity() {
             .apply()
     }
 
-    private enum class PendingSettings { EXACT_ALARM, FULL_SCREEN, BATTERY, AUTOSTART }
+    private fun hasPromptedOemLockScreen(): Boolean =
+        getPreferences(MODE_PRIVATE).getBoolean(KEY_OEM_LOCK_SCREEN_PROMPTED, false)
+
+    private fun markOemLockScreenPrompted() {
+        getPreferences(MODE_PRIVATE).edit()
+            .putBoolean(KEY_OEM_LOCK_SCREEN_PROMPTED, true)
+            .apply()
+    }
+
+    private enum class PendingSettings {
+        EXACT_ALARM,
+        FULL_SCREEN,
+        OVERLAY,
+        OEM_POPUP,
+        BATTERY,
+        AUTOSTART,
+    }
 
     companion object {
         private const val KEY_AUTOSTART_PROMPTED = "autostart_prompted"
+        private const val KEY_OEM_LOCK_SCREEN_PROMPTED = "oem_lock_screen_prompted"
     }
 }
