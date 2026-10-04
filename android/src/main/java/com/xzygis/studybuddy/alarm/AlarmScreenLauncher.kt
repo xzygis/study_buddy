@@ -35,23 +35,44 @@ object AlarmScreenLauncher {
         if (!AlarmNotifier.canShowFullScreen(context)) return false
 
         val notificationId = AlarmNotifier.notificationId(bindingId)
-        val pendingIntent = pendingIntent(
-            context = context,
-            bindingId = bindingId,
-            title = title,
-            notificationId = notificationId,
-            occurrenceId = occurrenceId,
+        val useDirectStart = shouldLaunchDirectly(
+            isOemRelevant = OemLockScreenSettings.isRelevant(),
+            canDrawOverlays = OemLockScreenSettings.canDrawOverlays(context),
         )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            pendingIntent.send(senderOptions())
+        if (useDirectStart) {
+            context.startActivity(
+                AlarmActivity.intent(
+                    context = context,
+                    bindingId = bindingId,
+                    title = title,
+                    notificationId = notificationId,
+                    occurrenceId = occurrenceId,
+                ),
+            )
         } else {
-            pendingIntent.send()
+            val pendingIntent = pendingIntent(
+                context = context,
+                bindingId = bindingId,
+                title = title,
+                notificationId = notificationId,
+                occurrenceId = occurrenceId,
+            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                pendingIntent.send(senderOptions())
+            } else {
+                pendingIntent.send()
+            }
         }
         return true
     }
 
     internal fun shouldLaunchImmediately(isLocked: Boolean, isInteractive: Boolean): Boolean =
         isLocked || !isInteractive
+
+    internal fun shouldLaunchDirectly(
+        isOemRelevant: Boolean,
+        canDrawOverlays: Boolean,
+    ): Boolean = isOemRelevant && canDrawOverlays
 
     private fun creatorOptions() =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {

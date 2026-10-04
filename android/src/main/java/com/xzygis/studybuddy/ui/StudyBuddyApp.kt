@@ -117,10 +117,13 @@ fun StudyBuddyApp(
     canUseFullScreenIntent: Boolean,
     isIgnoringBatteryOptimizations: Boolean,
     needsAutostartSetup: Boolean,
+    needsOemLockScreenSetup: Boolean,
+    hasOemLockScreenAccess: Boolean,
     onEnablePlan: (String) -> Unit,
     onOpenNotificationSettings: () -> Unit,
     onOpenExactAlarmSettings: () -> Unit,
     onOpenFullScreenSettings: () -> Unit,
+    onOpenOemLockScreenSettings: () -> Unit,
     onOpenBatterySettings: () -> Unit,
     onOpenAutostartSettings: () -> Unit,
 ) {
@@ -177,10 +180,13 @@ fun StudyBuddyApp(
                 canUseFullScreenIntent = canUseFullScreenIntent,
                 isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
                 needsAutostartSetup = needsAutostartSetup,
+                needsOemLockScreenSetup = needsOemLockScreenSetup,
+                hasOemLockScreenAccess = hasOemLockScreenAccess,
                 onEnablePlan = onEnablePlan,
                 onOpenNotificationSettings = onOpenNotificationSettings,
                 onOpenExactAlarmSettings = onOpenExactAlarmSettings,
                 onOpenFullScreenSettings = onOpenFullScreenSettings,
+                onOpenOemLockScreenSettings = onOpenOemLockScreenSettings,
                 onOpenBatterySettings = onOpenBatterySettings,
                 onOpenAutostartSettings = onOpenAutostartSettings,
                 onEdit = { editingPlan = it },
@@ -232,9 +238,12 @@ fun StudyBuddyApp(
                         canUseFullScreenIntent = canUseFullScreenIntent,
                         isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
                         needsAutostartSetup = needsAutostartSetup,
+                        needsOemLockScreenSetup = needsOemLockScreenSetup,
+                        hasOemLockScreenAccess = hasOemLockScreenAccess,
                         onOpenNotificationSettings = onOpenNotificationSettings,
                         onOpenExactAlarmSettings = onOpenExactAlarmSettings,
                         onOpenFullScreenSettings = onOpenFullScreenSettings,
+                        onOpenOemLockScreenSettings = onOpenOemLockScreenSettings,
                         onOpenBatterySettings = onOpenBatterySettings,
                         onOpenAutostartSettings = onOpenAutostartSettings,
                     )
@@ -266,9 +275,12 @@ private fun TodayScreen(
     canUseFullScreenIntent: Boolean,
     isIgnoringBatteryOptimizations: Boolean,
     needsAutostartSetup: Boolean,
+    needsOemLockScreenSetup: Boolean,
+    hasOemLockScreenAccess: Boolean,
     onOpenNotificationSettings: () -> Unit,
     onOpenExactAlarmSettings: () -> Unit,
     onOpenFullScreenSettings: () -> Unit,
+    onOpenOemLockScreenSettings: () -> Unit,
     onOpenBatterySettings: () -> Unit,
     onOpenAutostartSettings: () -> Unit,
 ) {
@@ -356,6 +368,9 @@ private fun TodayScreen(
             BackgroundSettingsPanel(
                 isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
                 showAutostartSettings = needsAutostartSetup,
+                showOemLockScreenSettings = needsOemLockScreenSetup,
+                hasOemLockScreenAccess = hasOemLockScreenAccess,
+                onOpenOemLockScreenSettings = onOpenOemLockScreenSettings,
                 onOpenBatterySettings = onOpenBatterySettings,
                 onOpenAutostartSettings = onOpenAutostartSettings,
             )
@@ -471,6 +486,9 @@ private fun PermissionBanner(
 private fun BackgroundSettingsPanel(
     isIgnoringBatteryOptimizations: Boolean,
     showAutostartSettings: Boolean,
+    showOemLockScreenSettings: Boolean,
+    hasOemLockScreenAccess: Boolean,
+    onOpenOemLockScreenSettings: () -> Unit,
     onOpenBatterySettings: () -> Unit,
     onOpenAutostartSettings: () -> Unit,
 ) {
@@ -502,6 +520,24 @@ private fun BackgroundSettingsPanel(
                 },
                 onClick = onOpenBatterySettings,
             )
+            if (showOemLockScreenSettings) {
+                HorizontalDivider()
+                BackgroundSettingRow(
+                    title = "锁屏弹窗权限",
+                    status = if (hasOemLockScreenAccess) {
+                        "已允许锁屏显示和后台弹窗"
+                    } else {
+                        "请依次允许显示在其他应用上层和后台弹窗/锁屏显示"
+                    },
+                    actionLabel = "权限设置",
+                    statusColor = if (hasOemLockScreenAccess) {
+                        StudyGreen
+                    } else {
+                        StudyOrange
+                    },
+                    onClick = onOpenOemLockScreenSettings,
+                )
+            }
             if (showAutostartSettings) {
                 HorizontalDivider()
                 BackgroundSettingRow(
@@ -756,10 +792,13 @@ private fun TabletLayout(
     canUseFullScreenIntent: Boolean,
     isIgnoringBatteryOptimizations: Boolean,
     needsAutostartSetup: Boolean,
+    needsOemLockScreenSetup: Boolean,
+    hasOemLockScreenAccess: Boolean,
     onEnablePlan: (String) -> Unit,
     onOpenNotificationSettings: () -> Unit,
     onOpenExactAlarmSettings: () -> Unit,
     onOpenFullScreenSettings: () -> Unit,
+    onOpenOemLockScreenSettings: () -> Unit,
     onOpenBatterySettings: () -> Unit,
     onOpenAutostartSettings: () -> Unit,
     onEdit: (StudyPlan) -> Unit,
@@ -801,9 +840,12 @@ private fun TabletLayout(
                 canUseFullScreenIntent = canUseFullScreenIntent,
                 isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
                 needsAutostartSetup = needsAutostartSetup,
+                needsOemLockScreenSetup = needsOemLockScreenSetup,
+                hasOemLockScreenAccess = hasOemLockScreenAccess,
                 onOpenNotificationSettings = onOpenNotificationSettings,
                 onOpenExactAlarmSettings = onOpenExactAlarmSettings,
                 onOpenFullScreenSettings = onOpenFullScreenSettings,
+                onOpenOemLockScreenSettings = onOpenOemLockScreenSettings,
                 onOpenBatterySettings = onOpenBatterySettings,
                 onOpenAutostartSettings = onOpenAutostartSettings,
             )
