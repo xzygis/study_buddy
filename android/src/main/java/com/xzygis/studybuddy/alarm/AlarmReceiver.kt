@@ -4,8 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.xzygis.studybuddy.StudyBuddyApplication
-import com.xzygis.studybuddy.data.AlarmBinding
-import com.xzygis.studybuddy.data.Weekday
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -15,7 +13,6 @@ class AlarmReceiver : BroadcastReceiver() {
         if (intent.action != ACTION_FIRE) return
         val planId = intent.getStringExtra(AndroidAlarmScheduler.EXTRA_PLAN_ID) ?: return
         val bindingId = intent.getStringExtra(AndroidAlarmScheduler.EXTRA_BINDING_ID) ?: return
-        val title = intent.getStringExtra(AndroidAlarmScheduler.EXTRA_TITLE) ?: "学习提醒"
         val triggerAt = intent.getLongExtra(
             AndroidAlarmScheduler.EXTRA_TRIGGER_AT,
             System.currentTimeMillis(),
@@ -23,70 +20,60 @@ class AlarmReceiver : BroadcastReceiver() {
         val occurrenceId = intent.getStringExtra(AndroidAlarmScheduler.EXTRA_OCCURRENCE_ID)
             ?: AlarmDiagnosticStore.occurrenceId(bindingId, triggerAt)
         val application = context.applicationContext as StudyBuddyApplication
-        application.alarmDiagnostics.recordReceiver(
-            occurrenceId = occurrenceId,
-            planId = planId,
-            bindingId = bindingId,
-            title = title,
-            triggerAt = triggerAt,
-            timestamp = System.currentTimeMillis(),
-        )
-        val binding = decodeBinding(intent, bindingId, title)
-
-        runCatching {
-            AlarmScreenLauncher.launchIfLocked(
-                context = context,
-                bindingId = bindingId,
-                title = title,
-                occurrenceId = occurrenceId,
-            )
-        }.onFailure {
-            application.alarmDiagnostics.recordError(occurrenceId, "launch_screen", it)
-        }
-        runCatching {
-            AlarmRingingService.start(
-                context = context,
-                planId = planId,
-                bindingId = bindingId,
-                title = title,
-                ringtoneUri = binding?.ringtoneUri,
-                occurrenceId = occurrenceId,
-            )
-        }.onFailure {
-            application.alarmDiagnostics.recordError(occurrenceId, "start_service", it)
-        }
-        if (binding != null) {
-            val pendingResult = goAsync()
-            CoroutineScope(Dispatchers.IO).launch {
+        val pendingResult = goAsync()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val binding = application.repository.current()
+                    .activeAlarmBinding(planId = planId, bindingId = bindingId)
+                if (binding == null) {
+                    application.alarmDiagnostics.recordCancelled(
+                        bindingId = bindingId,
+                        timestamp = System.currentTimeMillis(),
+                    )
+                    AlarmNotifier.cancel(context, AlarmNotifier.notificationId(bindingId))
+                    return@launch
+                }
+                application.alarmDiagnostics.recordReceiver(
+                    occurrenceId = occurrenceId,
+                    planId = planId,
+                    bindingId = bindingId,
+                    title = binding.title,
+                    triggerAt = triggerAt,
+                    timestamp = System.currentTimeMillis(),
+                )
+                runCatching {
+                    AlarmScreenLauncher.launchIfLocked(
+                        context = context,
+                        bindingId = bindingId,
+                        title = binding.title,
+                        occurrenceId = occurrenceId,
+                    )
+                }.onFailure {
+                    application.alarmDiagnostics.recordError(occurrenceId, "launch_screen", it)
+                }
+                runCatching {
+                    AlarmRingingService.start(
+                        context = context,
+                        planId = planId,
+                        bindingId = bindingId,
+                        title = binding.title,
+                        ringtoneUri = binding.ringtoneUri,
+                        occurrenceId = occurrenceId,
+                    )
+                }.onFailure {
+                    application.alarmDiagnostics.recordError(occurrenceId, "start_service", it)
+                }
                 try {
                     application.alarmScheduler.schedule(planId, binding)
                 } catch (error: Throwable) {
                     application.alarmDiagnostics.recordError(occurrenceId, "reschedule", error)
-                } finally {
-                    pendingResult.finish()
                 }
+            } catch (error: Throwable) {
+                application.alarmDiagnostics.recordError(occurrenceId, "validate", error)
+            } finally {
+                pendingResult.finish()
             }
         }
-    }
-
-    private fun decodeBinding(
-        intent: Intent,
-        bindingId: String,
-        title: String,
-    ): AlarmBinding? {
-        val weekdays = intent.getStringArrayExtra(AndroidAlarmScheduler.EXTRA_WEEKDAYS).orEmpty()
-            .mapNotNull { runCatching { Weekday.valueOf(it) }.getOrNull() }
-            .toSet()
-        if (weekdays.isEmpty()) return null
-        return AlarmBinding(
-            id = bindingId,
-            reminderId = intent.getStringExtra(AndroidAlarmScheduler.EXTRA_REMINDER_ID) ?: "",
-            title = title,
-            hour = intent.getIntExtra(AndroidAlarmScheduler.EXTRA_HOUR, 9),
-            minute = intent.getIntExtra(AndroidAlarmScheduler.EXTRA_MINUTE, 0),
-            weekdays = weekdays,
-            ringtoneUri = intent.getStringExtra(AndroidAlarmScheduler.EXTRA_RINGTONE_URI),
-        )
     }
 
     companion object {
